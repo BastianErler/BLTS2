@@ -1,17 +1,16 @@
 <template>
-  <div class="app">
-    <h1>🎯 Tippspiel</h1>
-    <p>Vue is working!</p>
-  </div>
+    <AppLayout :user="user">
+        <RouterView />
+    </AppLayout>
 </template>
 
-<style>
-.app {
-  text-align: center;
-  margin-top: 60px;
-  font-family: Arial, sans-serif;
-}
-h1 {
-  color: #42b983;
-}
-</style>
+<script setup lang="ts">
+import { RouterView } from "vue-router";
+import AppLayout from "@/components/AppLayout.vue";
+
+const user = {
+    name: "Bastian",
+    balance: "12,50",
+    avatar: null,
+};
+</script>
