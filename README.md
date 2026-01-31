@@ -1,109 +1,59 @@
-# Laravel Development Setup
+<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
-## 🚀 Installation
+<p align="center">
+<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+</p>
 
-### 1. Dateien in dein Repo kopieren
+## About Laravel
 
-Erstelle einen `.devcontainer` Ordner und kopiere beide Dateien hinein:
+Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
-```
-.devcontainer/
-├── devcontainer.json
-└── setup.sh
-```
+- [Simple, fast routing engine](https://laravel.com/docs/routing).
+- [Powerful dependency injection container](https://laravel.com/docs/container).
+- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
+- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
+- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
+- [Robust background job processing](https://laravel.com/docs/queues).
+- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
-### 2. Codespace erstellen
+Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
-- Geh auf GitHub zu deinem Repo
-- Klick auf "Code" → "Codespaces" → "Create codespace on main"
-- Warte, bis alles installiert ist (dauert ~3-5 Minuten beim ersten Mal)
+## Learning Laravel
 
-### 3. Laravel starten
+Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
 
-Nach dem Setup:
+If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
 
-```bash
-# Laravel Server starten
-php artisan serve
+## Laravel Sponsors
 
-# In einem neuen Terminal: Vite für Frontend starten
-npm run dev
-```
+We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
 
-Deine Laravel App läuft dann auf Port 8000!
+### Premium Partners
 
-## 📦 Was ist installiert?
+- **[Vehikl](https://vehikl.com)**
+- **[Tighten Co.](https://tighten.co)**
+- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
+- **[64 Robots](https://64robots.com)**
+- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
+- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
+- **[Redberry](https://redberry.international/laravel-development)**
+- **[Active Logic](https://activelogic.com)**
 
-- **PHP 8.3** mit Composer
-- **Node 20** mit npm
-- **MySQL 8.0** 
-- **Laravel** (neueste Version)
+## Contributing
 
-## 🗄️ Datenbank
+Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
 
-Die Datenbank ist bereits konfiguriert:
+## Code of Conduct
 
-- **Database:** `laravel`
-- **User:** `laravel`
-- **Password:** `password`
-- **Host:** `localhost`
+In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
 
-MySQL startet automatisch mit dem Container.
+## Security Vulnerabilities
 
-## 🛠️ Wichtige Befehle
+If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
-```bash
-# Artisan Befehle
-php artisan migrate              # Migrations ausführen
-php artisan make:controller Name # Controller erstellen
-php artisan make:model Name      # Model erstellen
-php artisan tinker               # REPL öffnen
+## License
 
-# Composer
-composer require package-name    # Package installieren
-composer dump-autoload          # Autoloader neu laden
-
-# NPM
-npm install                     # Dependencies installieren
-npm run dev                     # Development Server
-npm run build                   # Production Build
-```
-
-## 🔧 Troubleshooting
-
-### MySQL verbindet nicht
-```bash
-sudo service mysql start
-sudo mysql -u laravel -p laravel  # Password: password
-```
-
-### Port 8000 bereits belegt
-```bash
-php artisan serve --port=8001
-```
-
-### Permissions Error
-```bash
-sudo chown -R vscode:vscode /workspaces/BLTS2
-```
-
-## 📝 VS Code Extensions
-
-Folgende Extensions werden automatisch installiert:
-- PHP Intelephense (Code-Vervollständigung)
-- Laravel Blade (Syntax Highlighting)
-- Prettier (Code Formatting)
-- Tailwind CSS IntelliSense
-
-## 🎯 Next Steps
-
-1. Öffne `routes/web.php` und erstelle deine ersten Routes
-2. Erstelle Views in `resources/views/`
-3. Nutze `php artisan` für Code-Generierung
-4. Check die offizielle Laravel Docs: https://laravel.com/docs
-
-## ⚡ Performance-Tipps
-
-- Der Container startet MySQL automatisch
-- Vite Hot Module Replacement funktioniert out-of-the-box
-- Composer Cache ist aktiviert für schnellere Installs
+The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
