@@ -1,22 +1,50 @@
 {
-    "name": "Laravel Codespace",
-    "image": "mcr.microsoft.com/devcontainers/php:8.3",
-    "features": {
-      "ghcr.io/devcontainers/features/node:1": {
-        "version": "20"
-      },
-      "ghcr.io/devcontainers/features/composer:1": {},
-      "ghcr.io/devcontainers/features/mysql:1": {
-        "version": "8.0",
-        "mysqlDatabase": "laravel"
-      }
+  "name": "Laravel Development",
+  "image": "mcr.microsoft.com/devcontainers/php:1-8.3",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "runArgs": [
+    "--network=host"
+  ],
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "forwardPorts": [
+    8000,
+    3306,
+    5173
+  ],
+  "portsAttributes": {
+    "8000": {
+      "label": "Laravel",
+      "onAutoForward": "notify"
     },
-    "postCreateCommand": "composer install && npm install && cp .env.example .env && php artisan key:generate",
-    "forwardPorts": [8000],
-    "customizations": {
-      "vscode": {
-        "extensions": ["bmewburn.vscode-intelephense-client", "onecentlin.laravel-blade"]
+    "5173": {
+      "label": "Vite",
+      "onAutoForward": "silent"
+    },
+    "3306": {
+      "label": "MySQL"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bmewburn.vscode-intelephense-client",
+        "onecentlin.laravel-blade",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "php.validate.executablePath": "/usr/local/bin/php",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[php]": {
+          "editor.defaultFormatter": "bmewburn.vscode-intelephense-client"
+        }
       }
     }
-  }
-  
+  },
+  "remoteUser": "vscode"
+}
