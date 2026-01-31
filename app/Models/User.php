@@ -64,7 +64,7 @@ class User extends Authenticatable
     public function getTotalCostForSeason(Season $season): float
     {
         return $this->bets()
-            ->whereHas('game', fn($q) => $q->where('season_id', $season->id))
+            ->whereHas('game', fn($q) => fn($q) => $q->where('season_id', $season->id))
             ->sum('final_price');
     }
 
@@ -74,7 +74,7 @@ class User extends Authenticatable
     public function getLeaderboardPosition(Season $season): int
     {
         $allUsers = User::withSum(['bets as total_cost' => function ($query) use ($season) {
-            $query->whereHas('match', fn($q) => $q->where('season_id', $season->id));
+            $query->whereHas('game', fn($q) => fn($q) => $q->where('season_id', $season->id));
         }], 'final_price')
             ->orderBy('total_cost')
             ->get();

@@ -2,25 +2,17 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
- */
 class UserFactory extends Factory
 {
-    /**
-     * The current password being used by the factory.
-     */
-    protected static ?string $password;
+    protected $model = User::class;
 
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected static ?string $password = null;
+
     public function definition(): array
     {
         return [
@@ -29,16 +21,41 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'mobile' => fake()->boolean(50) ? fake()->phoneNumber() : null,
+            'wants_email_reminder' => fake()->boolean(70),
+            'wants_sms_reminder' => fake()->boolean(30),
+            'is_admin' => false,
+            'balance' => 0,
+            'jokers_remaining' => 3,
+            'jokers_used' => null,
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
     public function unverified(): static
     {
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
+        ]);
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_admin' => true,
+        ]);
+    }
+
+    public function noJokers(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'jokers_remaining' => 0,
+        ]);
+    }
+
+    public function withBalance(float $balance): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'balance' => $balance,
         ]);
     }
 }

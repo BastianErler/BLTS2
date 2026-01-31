@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +12,8 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 #[TypeScript]
 class Game extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'match_number',
         'opponent_id',
@@ -28,6 +31,7 @@ class Game extends Model
     ];
 
     protected $casts = [
+        'kickoff_at' => 'datetime',
         'eisbaeren_goals' => 'integer',
         'opponent_goals' => 'integer',
         'joker_data' => 'array',
@@ -77,7 +81,7 @@ class Game extends Model
     {
         return $this->status === 'scheduled' &&
             $this->kickoff_at->isFuture() &&
-            $this->kickoff_at->diffInHours(now()) >= 1;
+            now()->diffInMinutes($this->kickoff_at) >= 60; // mindestens 60 Minuten in der Zukunft
     }
 
     /**
