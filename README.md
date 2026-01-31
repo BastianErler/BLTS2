@@ -1,59 +1,236 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🎯 Tippspiel - Vue SPA + Laravel API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Architecture Overview
 
-## About Laravel
+```
+┌─────────────────────┐         ┌─────────────────────┐
+│   Vue 3 SPA         │         │   Laravel API       │
+│   (Port 5173)       │────────▶│   (Port 8000)       │
+│                     │  HTTP   │                     │
+│  - Vue Router       │  Axios  │  - Sanctum Auth     │
+│  - Pinia (State)    │         │  - RESTful API      │
+│  - Axios            │         │  - MySQL Database   │
+└─────────────────────┘         └─────────────────────┘
+```
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Quick Start
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+```bash
+# 1. Install Vue + API setup
+bash setup-vue-api.sh
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+# 2. Start Laravel API
+php artisan serve
 
-## Learning Laravel
+# 3. In new terminal: Start Vue dev server
+npm run dev
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## Database Structure (Example)
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Tables you'll need:
 
-## Laravel Sponsors
+**users**
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+- id
+- name
+- email
+- password
+- points (total)
 
-### Premium Partners
+**matches**
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+- id
+- team_home
+- team_away
+- score_home (nullable)
+- score_away (nullable)
+- kickoff_at
+- status (upcoming/live/finished)
 
-## Contributing
+**bets**
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+- id
+- user_id
+- match_id
+- predicted_home
+- predicted_away
+- points_earned (nullable)
+- created_at
 
-## Code of Conduct
+**leagues** (optional)
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- id
+- name
+- code (join code)
+- creator_id
 
-## Security Vulnerabilities
+**league_user** (pivot)
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- league_id
+- user_id
 
-## License
+## API Routes Structure
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```php
+// routes/api.php
+
+// Public
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
+// Protected (Sanctum)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/user', [AuthController::class, 'user']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Matches
+    Route::apiResource('matches', MatchController::class);
+
+    // Bets
+    Route::post('/bets', [BetController::class, 'store']);
+    Route::get('/bets', [BetController::class, 'index']);
+
+    // Leaderboard
+    Route::get('/leaderboard', [LeaderboardController::class, 'index']);
+});
+```
+
+## Vue Project Structure
+
+```
+resources/vue/
+├── src/
+│   ├── components/
+│   │   ├── MatchCard.vue
+│   │   ├── BetForm.vue
+│   │   └── Leaderboard.vue
+│   ├── views/
+│   │   ├── Home.vue
+│   │   ├── Matches.vue
+│   │   ├── MyBets.vue
+│   │   └── Login.vue
+│   ├── stores/
+│   │   ├── auth.js
+│   │   └── matches.js
+│   ├── services/
+│   │   └── api.js
+│   ├── router/
+│   │   └── index.js
+│   ├── App.vue
+│   └── main.js
+├── index.html
+└── public/
+```
+
+## Features to Implement
+
+### Phase 1 - MVP
+
+- [ ] User Registration/Login
+- [ ] View upcoming matches
+- [ ] Place bets before kickoff
+- [ ] See results after match
+- [ ] Basic leaderboard
+
+### Phase 2 - Enhanced
+
+- [ ] Live match updates
+- [ ] Point system (exact: 3pts, tendency: 1pt)
+- [ ] User profiles
+- [ ] Match notifications
+- [ ] Private leagues
+
+### Phase 3 - Advanced
+
+- [ ] Real-time updates (Pusher/WebSockets)
+- [ ] Match statistics
+- [ ] Achievements/Badges
+- [ ] Social features (comments)
+- [ ] Mobile app (PWA)
+
+## Commands for Development
+
+```bash
+# Create models with migration
+php artisan make:model Match -m
+php artisan make:model Bet -m
+
+# Create API controllers
+php artisan make:controller Api/MatchController --api
+php artisan make:controller Api/BetController --api
+
+# Create seeders (for test data)
+php artisan make:seeder MatchSeeder
+
+# Run migrations
+php artisan migrate
+
+# Seed test data
+php artisan db:seed
+
+# Clear cache
+php artisan config:clear
+php artisan cache:clear
+```
+
+## Environment Variables
+
+```env
+# Laravel API (.env)
+DB_CONNECTION=mysql
+DB_DATABASE=laravel
+DB_USERNAME=laravel
+DB_PASSWORD=password
+
+SANCTUM_STATEFUL_DOMAINS=localhost:5173,127.0.0.1:5173
+SESSION_DRIVER=cookie
+
+# Vue App (.env in resources/vue/)
+VITE_API_URL=http://localhost:8000/api
+```
+
+## Tech Stack
+
+**Frontend:**
+
+- Vue 3 (Composition API)
+- Vue Router (SPA routing)
+- Pinia (State Management)
+- Axios (HTTP client)
+- Vite (Build tool)
+
+**Backend:**
+
+- Laravel 11
+- Sanctum (API Auth)
+- MySQL/MariaDB
+- RESTful API
+
+## Additional Packages You Might Want
+
+```bash
+# Frontend
+npm install date-fns               # Date formatting
+npm install @vueuse/core           # Vue utilities
+npm install tailwindcss            # CSS framework
+
+# Backend
+composer require spatie/laravel-permission  # Roles/Permissions
+composer require spatie/laravel-query-builder # Advanced queries
+```
+
+## Deployment Considerations
+
+- Use Laravel Forge or Vapor
+- Frontend: Netlify, Vercel, or serve via Laravel
+- Database: Managed MySQL (DigitalOcean, AWS RDS)
+- Consider Redis for caching
+- Set up proper CORS in production
+
+## Resources
+
+- [Vue 3 Docs](https://vuejs.org/)
+- [Laravel Docs](https://laravel.com/docs)
+- [Sanctum Docs](https://laravel.com/docs/sanctum)
+- [Pinia Docs](https://pinia.vuejs.org/)
