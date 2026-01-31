@@ -22,15 +22,21 @@ if [ ! -f ".env" ] && [ -f ".env.example" ]; then
     php artisan key:generate
 fi
 
-# Start MariaDB if not running
-if ! sudo service mariadb status > /dev/null 2>&1; then
-    echo "🔧 Starting MariaDB..."
-    sudo service mariadb start
-    sleep 2
+# Check if MariaDB is installed
+if command -v mariadb &> /dev/null; then
+    # Start MariaDB if not running
+    if ! sudo service mariadb status > /dev/null 2>&1; then
+        echo "🔧 Starting MariaDB..."
+        sudo service mariadb start
+        sleep 2
+    fi
+    
+    # Ensure database exists
+    sudo mariadb -e "CREATE DATABASE IF NOT EXISTS laravel;" 2>/dev/null || true
+    echo "✅ MariaDB running"
+else
+    echo "⚠️  MariaDB not installed. Run: bash .devcontainer/setup.sh"
 fi
-
-# Ensure database exists
-sudo mariadb -e "CREATE DATABASE IF NOT EXISTS laravel;" 2>/dev/null || true
 
 echo "✅ Services ready!"
 echo ""
