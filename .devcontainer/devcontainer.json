@@ -11,6 +11,7 @@
     "runArgs": ["--network=host"],
 
     "postCreateCommand": "bash .devcontainer/setup.sh",
+    "postStartCommand": "bash .devcontainer/startup.sh",
 
     "forwardPorts": [8000, 3306, 5173],
 
