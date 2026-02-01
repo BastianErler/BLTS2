@@ -9,6 +9,8 @@ class GameResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $includeUserBet = $request->boolean('include_user_bet', true);
+
         return [
             'id' => $this->id,
             'game_number' => $this->game_number,
@@ -34,9 +36,12 @@ class GameResource extends JsonResource
             'is_finished' => $this->isFinished(),
             'winner' => $this->winner,
             'goal_difference' => $this->goalDifference,
+
             'user_bet' => $this->when(
-                $request->user(),
-                fn() => $this->bets()->where('user_id', $request->user()->id)->first()
+                $includeUserBet && $request->user(),
+                fn() => $this->bets()
+                    ->where('user_id', $request->user()->id)
+                    ->first()
             ),
         ];
     }

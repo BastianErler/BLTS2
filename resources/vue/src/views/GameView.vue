@@ -44,7 +44,7 @@
                     v-for="game in upcomingGames"
                     :key="game.id"
                     :game="game"
-                    :user-bet="userBetsByGameId[game.id] ?? null"
+                    :user-bet="game.user_bet ?? null"
                     clickable
                     @bet="openBet(game)"
                 />
@@ -71,7 +71,7 @@
                     v-for="game in pastGames"
                     :key="game.id"
                     :game="game"
-                    :user-bet="userBetsByGameId[game.id] ?? null"
+                    :user-bet="game.user_bet ?? null"
                 />
             </template>
         </div>
@@ -112,60 +112,16 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 
 const games = ref<Game[]>([]);
-const userBetsByGameId = ref<Record<number, Bet>>({});
-
-/* ================= HELPERS (identisch zur HomeView) ================= */
-
-const normalizeBetResponse = (res: any): Bet | null => {
-    const d = res?.data;
-
-    if (d?.bet) return d.bet as Bet;
-    if (d?.data?.bet) return d.data.bet as Bet;
-    if (d?.data) return d.data as Bet;
-    if (d?.id) return d as Bet;
-
-    return null;
-};
-
-const loadUserBetsForGames = async (list: Game[]) => {
-    const entries = await Promise.all(
-        list.map(async (g) => {
-            try {
-                const res = await gamesApi.getUserBet(g.id);
-                const bet = normalizeBetResponse(res);
-                if (!bet) return [g.id, null] as const;
-                return [g.id, bet] as const;
-            } catch {
-                // kein Tipp vorhanden => ok
-                return [g.id, null] as const;
-            }
-        }),
-    );
-
-    const map: Record<number, Bet> = {};
-    for (const [gameId, bet] of entries) {
-        if (bet) map[gameId] = bet;
-    }
-
-    userBetsByGameId.value = map;
-};
 
 /* ================= FETCH ================= */
 
-onMounted(async () => {
+const load = async () => {
     loading.value = true;
     error.value = null;
 
     try {
         const res = await gamesApi.getAll();
-        const list = res.data.data ?? [];
-
-        games.value = list;
-
-        // 👉 WICHTIG: nur für kommende Spiele Bets laden
-        const upcoming = list.filter((g: Game) => g.status === "scheduled");
-
-        await loadUserBetsForGames(upcoming);
+        games.value = res.data.data ?? [];
     } catch (e: any) {
         error.value =
             e?.response?.data?.message ??
@@ -175,7 +131,9 @@ onMounted(async () => {
     } finally {
         loading.value = false;
     }
-});
+};
+
+onMounted(load);
 
 /* ================= COMPUTED ================= */
 
@@ -199,7 +157,7 @@ const selectedExistingBet = ref<Bet | null>(null);
 
 function openBet(game: Game) {
     selectedGame.value = game;
-    selectedExistingBet.value = userBetsByGameId.value[game.id] ?? null;
+    selectedExistingBet.value = game.user_bet ?? null;
     betModalOpen.value = true;
 }
 
@@ -210,9 +168,18 @@ function closeBet() {
 }
 
 function onBetSaved(payload: { gameId: number; bet: Bet }) {
-    userBetsByGameId.value[payload.gameId] = payload.bet;
+    // 1) Update in Liste (damit "Dein Tipp" sofort sichtbar wird)
+    const idx = games.value.findIndex((g) => g.id === payload.gameId);
+    if (idx !== -1) {
+        games.value[idx] = {
+            ...games.value[idx],
+            user_bet: payload.bet,
+        } as any;
+    }
 
+    // 2) Update im offenen Modal-State
     if (selectedGame.value?.id === payload.gameId) {
+        selectedGame.value.user_bet = payload.bet as any;
         selectedExistingBet.value = payload.bet;
     }
 }

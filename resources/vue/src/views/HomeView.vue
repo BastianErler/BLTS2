@@ -59,7 +59,7 @@
                 v-for="g in games"
                 :key="g.id"
                 :game="g"
-                :user-bet="userBetsByGameId[g.id] ?? null"
+                :user-bet="g.user_bet ?? null"
                 :clickable="true"
                 @click="openGame(g)"
                 @bet="openBet(g)"
@@ -90,50 +90,10 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const games = ref<Game[]>([]);
 
-// Local cache of bets by game id
-const userBetsByGameId = ref<Record<number, Bet>>({});
-
 // Modal state
 const betModalOpen = ref(false);
 const selectedGame = ref<Game | null>(null);
 const selectedBet = ref<Bet | null>(null);
-
-const normalizeBetResponse = (res: any): Bet | null => {
-    const d = res?.data;
-
-    if (d?.bet) return d.bet as Bet;
-
-    if (d?.data?.bet) return d.data.bet as Bet;
-    if (d?.data) return d.data as Bet;
-
-    if (d?.id) return d as Bet;
-
-    return null;
-};
-
-const loadUserBetsForGames = async (list: Game[]) => {
-    // Wir laden pro Game den Tipp (nur wenige Upcoming Games => ok)
-    const entries = await Promise.all(
-        list.map(async (g) => {
-            try {
-                const res = await gamesApi.getUserBet(g.id);
-                const bet = normalizeBetResponse(res);
-                if (!bet) return [g.id, null] as const;
-                return [g.id, bet] as const;
-            } catch (e: any) {
-                // Kein Tipp vorhanden ist kein Fehler (oft 404)
-                return [g.id, null] as const;
-            }
-        }),
-    );
-
-    const map: Record<number, Bet> = {};
-    for (const [gameId, bet] of entries) {
-        if (bet) map[gameId] = bet;
-    }
-
-    userBetsByGameId.value = map;
-};
 
 const load = async () => {
     loading.value = true;
@@ -142,9 +102,9 @@ const load = async () => {
     try {
         const res = await gamesApi.getUpcoming();
         const list = res.data.data ?? [];
-        games.value = list;
 
-        await loadUserBetsForGames(list);
+        // GameResource liefert user_bet bereits -> keine extra calls
+        games.value = list;
     } catch (e: any) {
         error.value =
             e?.response?.data?.message ?? e?.message ?? "Unbekannter Fehler";
@@ -160,7 +120,10 @@ const openGame = (game: Game) => {
 
 const openBet = (game: Game) => {
     selectedGame.value = game;
-    selectedBet.value = userBetsByGameId.value[game.id] ?? null; // Prefill aus Cache
+
+    // Prefill direkt aus GameResource.user_bet
+    selectedBet.value = game.user_bet ?? null;
+
     betModalOpen.value = true;
 };
 
@@ -171,10 +134,19 @@ const closeBetModal = () => {
 };
 
 const onBetSaved = (payload: { gameId: number; bet: Bet }) => {
-    userBetsByGameId.value[payload.gameId] = payload.bet;
-
+    // 1) Direkt im aktuell selektierten Game updaten (sofort UI-Update)
     if (selectedGame.value?.id === payload.gameId) {
+        selectedGame.value.user_bet = payload.bet as any;
         selectedBet.value = payload.bet;
+    }
+
+    // 2) Auch in der Games-Liste updaten (damit Card sofort "Dein Tipp" zeigt)
+    const idx = games.value.findIndex((g) => g.id === payload.gameId);
+    if (idx !== -1) {
+        games.value[idx] = {
+            ...games.value[idx],
+            user_bet: payload.bet,
+        } as any;
     }
 };
 

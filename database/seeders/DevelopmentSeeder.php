@@ -9,6 +9,7 @@ use App\Models\Team;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Collection;
 
 class DevelopmentSeeder extends Seeder
 {
@@ -57,6 +58,11 @@ class DevelopmentSeeder extends Seeder
         $eisbaeren = Team::where('name', 'Eisbären Berlin')->first();
         $opponents = Team::where('name', '!=', 'Eisbären Berlin')->get();
 
+        if (!$eisbaeren || $opponents->isEmpty()) {
+            $this->command->error("❌ Teams missing. Please check TeamSeeder.");
+            return;
+        }
+
         // Create current season
         $season = Season::firstOrCreate(
             ['name' => '24/25'],
@@ -71,70 +77,176 @@ class DevelopmentSeeder extends Seeder
             ]
         );
 
-        $this->command->info('✅ Created season 24/25');
+        $this->command->info('✅ Ensured season 24/25');
 
-        // Create games
-        $gamesData = [
-            // Past games (finished)
-            ['opponent' => 'Adler Mannheim', 'days_ago' => 7, 'eisbaeren' => 4, 'opponent_goals' => 2, 'is_home' => true, 'is_derby' => true],
-            ['opponent' => 'EHC Red Bull München', 'days_ago' => 5, 'eisbaeren' => 3, 'opponent_goals' => 3, 'is_home' => false],
-            ['opponent' => 'Kölner Haie', 'days_ago' => 3, 'eisbaeren' => 2, 'opponent_goals' => 1, 'is_home' => true],
-            ['opponent' => 'Grizzlys Wolfsburg', 'days_ago' => 2, 'eisbaeren' => 5, 'opponent_goals' => 3, 'is_home' => true],
+        /**
+         * =========================
+         * CONFIG: HOW MUCH DATA?
+         * =========================
+         */
+        $pastGamesCount = 18;     // finished games
+        $upcomingGamesCount = 12; // scheduled games
+        $liveGamesCount = 2;      // live games (optional; set 0 if you don't want)
 
-            // Upcoming games (scheduled)
-            ['opponent' => 'Straubing Tigers', 'days_ahead' => 1, 'is_home' => false],
-            ['opponent' => 'Düsseldorfer EG', 'days_ahead' => 3, 'is_home' => true],
-            ['opponent' => 'EHC Red Bull München', 'days_ahead' => 5, 'is_home' => false, 'is_derby' => true],
-            ['opponent' => 'Adler Mannheim', 'days_ahead' => 7, 'is_home' => true, 'is_playoff' => true],
-        ];
+        // start game number after already existing games in this season
+        $existingMaxNumber = Game::where('season_id', $season->id)->max('game_number') ?? 0;
+        $gameNumber = max(1, (int) $existingMaxNumber + 1);
 
+        /**
+         * =========================
+         * CREATE GAMES (IDEMPOTENT-ish)
+         * We avoid duplicates by using season_id + game_number as stable identity.
+         * =========================
+         */
         $games = collect();
-        $gameNumber = 1;
 
-        foreach ($gamesData as $data) {
-            $opponent = Team::where('name', $data['opponent'])->first();
+        // Helper: pick random opponent
+        $pickOpponent = fn() => $opponents->random();
 
-            if (!$opponent) {
-                $this->command->warn("⚠️  Team '{$data['opponent']}' not found, skipping...");
-                continue;
+        // Past (finished) games: spread over last ~35 days
+        for ($i = 0; $i < $pastGamesCount; $i++) {
+            $opponent = $pickOpponent();
+
+            // distribute dates: 2 days apart, newest closer to now
+            $daysAgo = 2 + ($i * 2);
+            $kickoffAt = now()
+                ->subDays($daysAgo)
+                ->setTime(rand(18, 20), [0, 30][array_rand([0, 1])]);
+
+            // Realistic-ish scores
+            $ebbGoals = rand(0, 6);
+            $oppGoals = rand(0, 6);
+
+            // avoid too many draws (your bet model marks draw as invalid)
+            if ($ebbGoals === $oppGoals) {
+                if (rand(0, 1) === 0) $ebbGoals++;
+                else $oppGoals++;
             }
 
-            $kickoffAt = isset($data['days_ago'])
-                ? now()->subDays($data['days_ago'])->setTime(19, 30)
-                : now()->addDays($data['days_ahead'])->setTime(19, 30);
+            $isDerby = rand(1, 8) === 1;   // ~12.5%
+            $isPlayoff = rand(1, 12) === 1; // ~8%
 
-            $game = Game::create([
-                'game_number' => $gameNumber++,
-                'opponent_id' => $opponent->id,
-                'season_id' => $season->id,
-                'is_home' => $data['is_home'] ?? true,
-                'kickoff_at' => $kickoffAt,
-                'eisbaeren_goals' => $data['eisbaeren'] ?? null,
-                'opponent_goals' => $data['opponent_goals'] ?? null,
-                'status' => isset($data['eisbaeren']) ? 'finished' : 'scheduled',
-                'is_derby' => $data['is_derby'] ?? false,
-                'is_playoff' => $data['is_playoff'] ?? false,
-                'difficulty_rating' => rand(2, 4),
-            ]);
+            $game = Game::firstOrCreate(
+                [
+                    'season_id' => $season->id,
+                    'game_number' => $gameNumber,
+                ],
+                [
+                    'opponent_id' => $opponent->id,
+                    'is_home' => (bool) rand(0, 1),
+                    'kickoff_at' => $kickoffAt,
+                    'eisbaeren_goals' => $ebbGoals,
+                    'opponent_goals' => $oppGoals,
+                    'status' => 'finished',
+                    'is_derby' => $isDerby,
+                    'is_playoff' => $isPlayoff,
+                    'difficulty_rating' => rand(2, 4),
+                ]
+            );
 
             $games->push($game);
+            $gameNumber++;
         }
 
-        $this->command->info("✅ Created {$games->count()} games");
+        // Upcoming (scheduled) games: next ~30 days
+        for ($i = 0; $i < $upcomingGamesCount; $i++) {
+            $opponent = $pickOpponent();
 
-        // Create bets for past games
-        $finishedGames = $games->where('status', 'finished');
+            $daysAhead = 1 + ($i * 2);
+            $kickoffAt = now()
+                ->addDays($daysAhead)
+                ->setTime(rand(18, 20), [0, 30][array_rand([0, 1])]);
+
+            $isDerby = rand(1, 10) === 1;
+            $isPlayoff = rand(1, 14) === 1;
+
+            $game = Game::firstOrCreate(
+                [
+                    'season_id' => $season->id,
+                    'game_number' => $gameNumber,
+                ],
+                [
+                    'opponent_id' => $opponent->id,
+                    'is_home' => (bool) rand(0, 1),
+                    'kickoff_at' => $kickoffAt,
+                    'eisbaeren_goals' => null,
+                    'opponent_goals' => null,
+                    'status' => 'scheduled',
+                    'is_derby' => $isDerby,
+                    'is_playoff' => $isPlayoff,
+                    'difficulty_rating' => rand(2, 4),
+                ]
+            );
+
+            $games->push($game);
+            $gameNumber++;
+        }
+
+        // Live games (optional): now-ish
+        for ($i = 0; $i < $liveGamesCount; $i++) {
+            $opponent = $pickOpponent();
+
+            $kickoffAt = now()->subMinutes(rand(10, 55));
+
+            $game = Game::firstOrCreate(
+                [
+                    'season_id' => $season->id,
+                    'game_number' => $gameNumber,
+                ],
+                [
+                    'opponent_id' => $opponent->id,
+                    'is_home' => (bool) rand(0, 1),
+                    'kickoff_at' => $kickoffAt,
+                    'eisbaeren_goals' => rand(0, 4),
+                    'opponent_goals' => rand(0, 4),
+                    'status' => 'live',
+                    'is_derby' => rand(1, 12) === 1,
+                    'is_playoff' => false,
+                    'difficulty_rating' => rand(2, 4),
+                ]
+            );
+
+            $games->push($game);
+            $gameNumber++;
+        }
+
+        $this->command->info("✅ Ensured/created {$games->count()} games (added this run)");
+
+        /**
+         * =========================
+         * CREATE BETS
+         * =========================
+         * - For finished games: everyone gets a bet (like before)
+         * - For upcoming games: create some bets randomly (so you see "already tipped" in UI)
+         * - Avoid duplicates: one bet per user per game
+         */
         $betCount = 0;
+
+        $finishedGames = Game::where('season_id', $season->id)
+            ->where('status', 'finished')
+            ->get();
 
         foreach ($finishedGames as $game) {
             foreach ($users as $user) {
-                // Random bet with some variation
-                $eisbaerenGoals = rand(1, 5);
-                $opponentGoals = rand(0, 4);
+                $already = Bet::where('user_id', $user->id)
+                    ->where('game_id', $game->id)
+                    ->exists();
 
-                // Sometimes use a joker
+                if ($already) {
+                    continue;
+                }
+
+                $eisbaerenGoals = rand(0, 6);
+                $opponentGoals = rand(0, 6);
+
+                // avoid draw tips (invalid) too often
+                if ($eisbaerenGoals === $opponentGoals && rand(1, 4) !== 1) {
+                    if (rand(0, 1) === 0) $eisbaerenGoals++;
+                    else $opponentGoals++;
+                }
+
                 $jokerType = null;
-                if ($user->jokers_remaining > 0 && rand(1, 5) === 1) {
+                if ($user->jokers_remaining > 0 && rand(1, 6) === 1) {
                     $jokerType = collect(['safety', 'double_down'])->random();
                 }
 
@@ -150,10 +262,8 @@ class DevelopmentSeeder extends Seeder
                     $user->useJoker($jokerType, $bet);
                 }
 
-                // Calculate prices
                 $bet->updatePrices();
 
-                // Create transaction
                 if ($bet->final_price > 0) {
                     Transaction::create([
                         'user_id' => $user->id,
@@ -168,10 +278,78 @@ class DevelopmentSeeder extends Seeder
             }
         }
 
-        $this->command->info("✅ Created {$betCount} bets");
+        // Upcoming games: create bets for some users (not all), so UI shows mixed state
+        $upcomingGames = Game::where('season_id', $season->id)
+            ->where('status', 'scheduled')
+            ->orderBy('kickoff_at')
+            ->take(10)
+            ->get();
 
-        // Create some deposits
+        foreach ($upcomingGames as $game) {
+            foreach ($users as $user) {
+                // ~55% chance a user has already tipped upcoming games
+                if (rand(1, 100) > 55) {
+                    continue;
+                }
+
+                $already = Bet::where('user_id', $user->id)
+                    ->where('game_id', $game->id)
+                    ->exists();
+
+                if ($already) {
+                    continue;
+                }
+
+                $eisbaerenGoals = rand(0, 6);
+                $opponentGoals = rand(0, 6);
+
+                // avoid draw tips mostly
+                if ($eisbaerenGoals === $opponentGoals && rand(1, 5) !== 1) {
+                    if (rand(0, 1) === 0) $eisbaerenGoals++;
+                    else $opponentGoals++;
+                }
+
+                $jokerType = null;
+                if ($user->jokers_remaining > 0 && rand(1, 12) === 1) {
+                    $jokerType = collect(['safety', 'double_down'])->random();
+                }
+
+                $bet = Bet::create([
+                    'user_id' => $user->id,
+                    'game_id' => $game->id,
+                    'eisbaeren_goals' => $eisbaerenGoals,
+                    'opponent_goals' => $opponentGoals,
+                    'joker_type' => $jokerType,
+                ]);
+
+                if ($jokerType) {
+                    $user->useJoker($jokerType, $bet);
+                }
+
+                // upcoming: prices will be 0 because game not finished, that's fine
+                $bet->updatePrices();
+
+                $betCount++;
+            }
+        }
+
+        $this->command->info("✅ Created {$betCount} bets (new this run)");
+
+        /**
+         * =========================
+         * DEPOSITS (only once-ish)
+         * =========================
+         */
         foreach ($users as $user) {
+            $hasInitialDeposit = Transaction::where('user_id', $user->id)
+                ->where('type', 'deposit')
+                ->where('description', 'Initial deposit')
+                ->exists();
+
+            if ($hasInitialDeposit) {
+                continue;
+            }
+
             Transaction::create([
                 'user_id' => $user->id,
                 'creator_id' => $admin->id,
@@ -192,15 +370,14 @@ class DevelopmentSeeder extends Seeder
         $this->command->info('');
         $this->command->line('🎯 <fg=green>Development data created!</>');
         $this->command->table(
-            ['User', 'Balance', 'Total Cost', 'Jokers Left'],
-            $users->map(function ($user) use ($season) {
+            ['User', 'Balance', 'Jokers Left'],
+            $users->map(function ($user) {
                 return [
                     $user->name,
-                    number_format($user->balance, 2) . '€',
-                    number_format($user->getTotalCostForSeason($season), 2) . '€',
+                    number_format((float) $user->balance, 2) . '€',
                     $user->jokers_remaining,
                 ];
-            })
+            })->toArray()
         );
 
         $this->command->info('');
