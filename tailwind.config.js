@@ -1,10 +1,12 @@
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /** @type {import('tailwindcss').Config} */
 export default {
-    content: [
-        "./resources/vue/index.html",
-        "./resources/vue/src/**/*.{vue,js,ts,jsx,tsx}",
-        "./resources/**/*.{vue,js,ts,jsx,tsx}",
-    ],
+    content: ["./index.html", "./resources/vue/src/**/*.{vue,js,ts,jsx,tsx}"],
     theme: {
         extend: {
             colors: {
@@ -34,40 +36,10 @@ export default {
                     900: "#7a1f2d",
                     950: "#450d16",
                 },
-                ice: {
-                    50: "#f0f9ff",
-                    100: "#e0f2fe",
-                    200: "#b9e5fe",
-                    300: "#7dd3fc",
-                    400: "#38bdf8",
-                    500: "#0ea5e9",
-                    600: "#0284c7",
-                    700: "#0369a1",
-                    800: "#075985",
-                    900: "#0c4a6e",
-                },
             },
             fontFamily: {
                 sans: ["Inter", "system-ui", "sans-serif"],
                 display: ["Bebas Neue", "Impact", "sans-serif"],
-            },
-            backgroundImage: {
-                "ice-texture": "url('/images/ice-texture.png')",
-                "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-            },
-            boxShadow: {
-                glow: "0 0 20px rgba(14, 165, 233, 0.5)",
-                "glow-red": "0 0 20px rgba(139, 35, 50, 0.5)",
-            },
-            animation: {
-                "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                float: "float 3s ease-in-out infinite",
-            },
-            keyframes: {
-                float: {
-                    "0%, 100%": { transform: "translateY(0)" },
-                    "50%": { transform: "translateY(-10px)" },
-                },
             },
         },
     },
