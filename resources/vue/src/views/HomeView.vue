@@ -59,12 +59,21 @@
                 v-for="g in games"
                 :key="g.id"
                 :game="g"
-                :user-bet="null"
+                :user-bet="userBetsByGameId[g.id] ?? null"
                 :clickable="true"
                 @click="openGame(g)"
                 @bet="openBet(g)"
             />
         </div>
+
+        <!-- Bet Modal -->
+        <BetModal
+            :open="betModalOpen"
+            :game="selectedGame"
+            :existing-bet="selectedBet"
+            @close="closeBetModal"
+            @saved="onBetSaved"
+        />
     </div>
 </template>
 
@@ -72,7 +81,8 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import GameCard from "@/components/GameCard.vue";
-import { gamesApi, type Game } from "@/services/api";
+import BetModal from "@/components/BetModal.vue";
+import { gamesApi, type Bet, type Game } from "@/services/api";
 
 const router = useRouter();
 
@@ -80,13 +90,61 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const games = ref<Game[]>([]);
 
+// Local cache of bets by game id
+const userBetsByGameId = ref<Record<number, Bet>>({});
+
+// Modal state
+const betModalOpen = ref(false);
+const selectedGame = ref<Game | null>(null);
+const selectedBet = ref<Bet | null>(null);
+
+const normalizeBetResponse = (res: any): Bet | null => {
+    const d = res?.data;
+
+    if (d?.bet) return d.bet as Bet;
+
+    if (d?.data?.bet) return d.data.bet as Bet;
+    if (d?.data) return d.data as Bet;
+
+    if (d?.id) return d as Bet;
+
+    return null;
+};
+
+const loadUserBetsForGames = async (list: Game[]) => {
+    // Wir laden pro Game den Tipp (nur wenige Upcoming Games => ok)
+    const entries = await Promise.all(
+        list.map(async (g) => {
+            try {
+                const res = await gamesApi.getUserBet(g.id);
+                const bet = normalizeBetResponse(res);
+                if (!bet) return [g.id, null] as const;
+                return [g.id, bet] as const;
+            } catch (e: any) {
+                // Kein Tipp vorhanden ist kein Fehler (oft 404)
+                return [g.id, null] as const;
+            }
+        }),
+    );
+
+    const map: Record<number, Bet> = {};
+    for (const [gameId, bet] of entries) {
+        if (bet) map[gameId] = bet;
+    }
+
+    userBetsByGameId.value = map;
+};
+
 const load = async () => {
     loading.value = true;
     error.value = null;
 
     try {
         const res = await gamesApi.getUpcoming();
-        games.value = res.data.data ?? [];
+        const list = res.data.data ?? [];
+        games.value = list;
+
+        await loadUserBetsForGames(list);
     } catch (e: any) {
         error.value =
             e?.response?.data?.message ?? e?.message ?? "Unbekannter Fehler";
@@ -96,12 +154,28 @@ const load = async () => {
 };
 
 const openGame = (game: Game) => {
-    // Wenn du später eine Detailseite hast: router.push(`/games/${game.id}`)
+    // Später: router.push(`/games/${game.id}`)
     router.push("/games");
 };
 
 const openBet = (game: Game) => {
-    router.push("/games");
+    selectedGame.value = game;
+    selectedBet.value = userBetsByGameId.value[game.id] ?? null; // Prefill aus Cache
+    betModalOpen.value = true;
+};
+
+const closeBetModal = () => {
+    betModalOpen.value = false;
+    selectedGame.value = null;
+    selectedBet.value = null;
+};
+
+const onBetSaved = (payload: { gameId: number; bet: Bet }) => {
+    userBetsByGameId.value[payload.gameId] = payload.bet;
+
+    if (selectedGame.value?.id === payload.gameId) {
+        selectedBet.value = payload.bet;
+    }
 };
 
 onMounted(load);

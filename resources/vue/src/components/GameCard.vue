@@ -125,8 +125,8 @@
 
                     <div class="flex items-center gap-2">
                         <span class="font-extrabold text-white">
-                            {{ userBet.eisbaeren_goals }} :
-                            {{ userBet.opponent_goals }}
+                            {{ displayedUserBetLeftGoals }} :
+                            {{ displayedUserBetRightGoals }}
                         </span>
 
                         <BaseBadge
@@ -280,6 +280,27 @@ const rightLogo = computed(() => getLogoUrl(rightTeam.value.logo_url));
 
 const leftAlt = computed(() => leftTeam.value.name);
 const rightAlt = computed(() => rightTeam.value.name);
+
+// ---- Bet display mapping (must follow left/right placement) ----
+const displayedUserBetLeftGoals = computed(() => {
+    if (!props.userBet) return null;
+
+    // Heim: links = EBB
+    if (isHomeGame.value) return props.userBet.eisbaeren_goals;
+
+    // Auswärts: links = Opponent
+    return props.userBet.opponent_goals;
+});
+
+const displayedUserBetRightGoals = computed(() => {
+    if (!props.userBet) return null;
+
+    // Heim: rechts = Opponent
+    if (isHomeGame.value) return props.userBet.opponent_goals;
+
+    // Auswärts: rechts = EBB
+    return props.userBet.eisbaeren_goals;
+});
 
 const priceColorClass = computed(() => {
     const priceRaw = props.userBet?.final_price;

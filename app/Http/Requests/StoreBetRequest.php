@@ -14,7 +14,7 @@ class StoreBetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'game_id' => 'required|exists:games,id',
+            'game_id' => ['sometimes', 'exists:games,id'],
             'eisbaeren_goals' => 'required|integer|min:0|max:20',
             'opponent_goals' => 'required|integer|min:0|max:20',
             'joker_type' => 'nullable|in:safety,precision,comeback,insurance',

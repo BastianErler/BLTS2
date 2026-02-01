@@ -13,6 +13,23 @@ const api = axios.create({
         "Content-Type": "application/json",
     },
 });
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        const status = error?.response?.status;
+
+        if (status === 401) {
+            localStorage.removeItem("auth_token");
+
+            // falls du Vue Router importieren willst: besser über window:
+            if (window.location.pathname !== "/login") {
+                window.location.href = "/login";
+            }
+        }
+
+        return Promise.reject(error);
+    },
+);
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
