@@ -103,7 +103,9 @@ export interface LeaderboardEntry {
     exact_bets: number;
     average_cost: number;
     jokers_remaining: number;
-    position: number;
+    rank: number;
+    delta: number;
+    is_me: boolean;
 }
 
 export interface LeaderboardResponse {
@@ -111,8 +113,24 @@ export interface LeaderboardResponse {
         id: number;
         name: string;
     };
-    leaderboard: LeaderboardEntry[];
-    my_position: number | null;
+    delta_basis?: {
+        latest_finished_game_id?: number | null;
+        previous_finished_game_id?: number | null;
+        latest_cutoff?: string | null;
+        previous_cutoff?: string | null;
+    };
+    me: LeaderboardEntry | null;
+    top3: LeaderboardEntry[];
+    entries: LeaderboardEntry[];
+    generated_at: string;
+}
+
+export interface Season {
+    id: number;
+    name: string;
+    is_active: boolean;
+    start_date: string;
+    end_date: string | null;
 }
 
 // Games API
@@ -151,10 +169,11 @@ export const betsApi = {
 
 // Leaderboard API
 export const leaderboardApi = {
-    get: () => api.get<LeaderboardResponse>("/leaderboard"),
+    get: (params?: { season_id?: number }) =>
+        api.get<LeaderboardResponse>("/leaderboard", { params }),
 
-    getUserStats: (userId?: number) =>
-        api.get<UserStats>(userId ? `/stats/${userId}` : "/stats"),
+    getUserStats: (userId?: number, params?: { season_id?: number }) =>
+        api.get<UserStats>(userId ? `/stats/${userId}` : "/stats", { params }),
 };
 
 // Auth API
@@ -165,6 +184,10 @@ export const authApi = {
     logout: () => api.post("/logout"),
 
     getMe: () => api.get("/me"),
+};
+
+export const seasonsApi = {
+    getAll: () => api.get<{ data: Season[] }>("/seasons"),
 };
 
 export const getLogoUrl = (logoPath: string | null): string => {
