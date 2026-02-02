@@ -1,13 +1,5 @@
 <template>
     <div class="flex flex-col min-h-screen bg-navy-900 text-white">
-        <!-- ================= HEADER ================= -->
-        <header class="px-4 pt-4 pb-2">
-            <h1 class="font-display text-3xl tracking-wide">Tipps</h1>
-            <p class="text-sm text-white/70 mt-1">
-                Deine abgegebenen Tipps inkl. Ergebnis & Kosten
-            </p>
-        </header>
-
         <!-- ================= CONTENT ================= -->
         <div class="flex-1 px-3 py-4 space-y-4">
             <!-- Loading -->

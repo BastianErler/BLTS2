@@ -1,3 +1,25 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { useRoute } from "vue-router";
+import BaseAvatar from "@/components/BaseAvatar.vue";
+import BottomNav from "@/components/BottomNav.vue";
+
+const route = useRoute();
+
+defineProps<{
+    user?: { name?: string; avatar?: string | null };
+}>();
+
+const pageTitle = computed(
+    () => (route.meta?.pageTitle as string | null) ?? null,
+);
+const pageSubtitle = computed(
+    () => (route.meta?.pageSubtitle as string | null) ?? null,
+);
+
+const isHome = computed(() => route.name === "home");
+</script>
+
 <template>
     <div class="min-h-screen bg-[#0b0f14] text-white relative overflow-hidden">
         <!-- Ambient glow (nur Desktop) -->
@@ -43,7 +65,7 @@
                     </header>
 
                     <!-- HERO -->
-                    <section class="relative overflow-hidden">
+                    <section class="relative overflow-hidden min-h-[200px]">
                         <img
                             src="/images/hero.png"
                             alt=""
@@ -53,18 +75,38 @@
                             class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/80"
                         ></div>
 
-                        <div class="relative px-4 pt-6 pb-8">
-                            <h1 class="text-2xl font-bold">
-                                Hallo {{ user?.name ?? "Bastian" }}!
-                            </h1>
-                            <p class="text-white/80 mt-1">
-                                Hier sind deine nächsten Tipps:
-                            </p>
+                        <div class="relative px-4 pt-6 pb-10">
+                            <!-- Home Greeting -->
+                            <template v-if="isHome">
+                                <h1 class="text-2xl font-bold">
+                                    Hallo {{ user?.name ?? "Bastian" }}!
+                                </h1>
+                                <p class="text-white/80 mt-1">
+                                    Hier sind deine nächsten Tipps:
+                                </p>
+                            </template>
+
+                            <!-- Page Title (non-home) -->
+                            <template v-else-if="pageTitle">
+                                <h1
+                                    class="font-display text-4xl tracking-wide text-white"
+                                >
+                                    {{ pageTitle }}
+                                </h1>
+                                <p
+                                    v-if="pageSubtitle"
+                                    class="text-sm text-white/80 mt-1"
+                                >
+                                    {{ pageSubtitle }}
+                                </p>
+                            </template>
                         </div>
                     </section>
 
                     <!-- CONTENT -->
-                    <main class="relative z-10 flex-1 px-4 -mt-4 pb-24 lg:pb-0">
+                    <main
+                        class="relative z-10 flex-1 px-4 -mt-20 pb-24 lg:pb-0"
+                    >
                         <slot />
                     </main>
 
@@ -75,12 +117,3 @@
         </div>
     </div>
 </template>
-
-<script setup lang="ts">
-import BaseAvatar from "@/components/BaseAvatar.vue";
-import BottomNav from "@/components/BottomNav.vue";
-
-defineProps<{
-    user?: { name?: string; avatar?: string | null };
-}>();
-</script>

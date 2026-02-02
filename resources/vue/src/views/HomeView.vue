@@ -1,22 +1,5 @@
 <template>
     <div class="space-y-4">
-        <!-- Header -->
-        <div class="flex items-end justify-between">
-            <div>
-                <h2 class="section-title">Nächste Spiele</h2>
-                <p class="muted text-sm mt-1">
-                    Tippe rechtzeitig – danach wird gesperrt.
-                </p>
-            </div>
-
-            <RouterLink
-                to="/games"
-                class="text-sm font-semibold text-white/80 hover:text-white transition"
-            >
-                Alle →
-            </RouterLink>
-        </div>
-
         <!-- Loading -->
         <div v-if="loading" class="space-y-3">
             <div v-for="n in 2" :key="n" class="glass-card p-4">

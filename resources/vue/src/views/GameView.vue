@@ -1,10 +1,5 @@
 <template>
     <div class="flex flex-col min-h-screen bg-navy-900 text-white">
-        <!-- ================= HEADER ================= -->
-        <header class="px-4 pt-4 pb-2">
-            <h1 class="font-display text-3xl tracking-wide">Spiele</h1>
-        </header>
-
         <!-- ================= TABS ================= -->
         <div
             class="sticky top-0 z-20 bg-navy-900/95 backdrop-blur border-b border-navy-700"

@@ -12,12 +12,42 @@ import ProfileView from "../views/ProfileView.vue";
 import LoginView from "../views/Login.vue";
 
 const routes: RouteRecordRaw[] = [
-    { path: "/login", name: "login", component: LoginView },
-    { path: "/", name: "home", component: HomeView },
-    { path: "/games", name: "games", component: GameView },
-    { path: "/bets", name: "bets", component: BetsView },
-    { path: "/leaderboard", name: "leaderboard", component: LeaderboardView },
-    { path: "/profile", name: "profile", component: ProfileView },
+    {
+        path: "/",
+        name: "home",
+        component: HomeView,
+        meta: { pageTitle: null, pageSubtitle: null },
+    },
+    {
+        path: "/games",
+        name: "games",
+        component: GameView,
+        meta: { pageTitle: "Spiele", pageSubtitle: null },
+    },
+    {
+        path: "/bets",
+        name: "bets",
+        component: BetsView,
+        meta: {
+            pageTitle: "Tipps",
+            pageSubtitle: "Deine abgegebenen Tipps inkl. Ergebnis & Kosten",
+        },
+    },
+    {
+        path: "/leaderboard",
+        name: "leaderboard",
+        component: LeaderboardView,
+        meta: {
+            pageTitle: "Rangliste",
+            pageSubtitle: "Saison 25/26 · Gesamtwertung",
+        },
+    },
+    {
+        path: "/profile",
+        name: "profile",
+        component: ProfileView,
+        meta: { pageTitle: "Profil", pageSubtitle: null },
+    },
 ];
 
 const router = createRouter({ history: createWebHistory(), routes });
