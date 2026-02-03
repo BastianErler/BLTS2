@@ -27,7 +27,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
-    Route::put('/settings', [AuthController::class, 'updateSettings']);
+    Route::put('/me/settings', [AuthController::class, 'updateSettings']);
+
 
     // Games
     Route::get('/games', [GameController::class, 'index']);

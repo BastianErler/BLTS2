@@ -52,7 +52,11 @@ const routes: RouteRecordRaw[] = [
         path: "/profile",
         name: "profile",
         component: ProfileView,
-        meta: { pageTitle: "Profil", pageSubtitle: null },
+        meta: {
+            pageTitle: "Profil",
+            pageSubtitle:
+                "Überblick über Guthaben, Zahlungen und deine Tipp-Statistiken.",
+        },
     },
 ];
 

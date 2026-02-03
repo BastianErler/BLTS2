@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Game;
 use App\Models\Season;
 use App\Models\User;
+use App\Support\LeaderboardCache;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LeaderboardController extends Controller
 {
@@ -15,7 +17,6 @@ class LeaderboardController extends Controller
      */
     public function index(Request $request)
     {
-
         $seasonId = $request->integer('season_id');
 
         $season = $seasonId
@@ -28,7 +29,7 @@ class LeaderboardController extends Controller
 
         $now = now();
 
-        // ===== Delta Basis: letztes finished Spiel vs davor =====
+        // ===== Delta-Basis: letztes finished Spiel vs davor =====
         $lastTwoFinished = Game::query()
             ->where('season_id', $season->id)
             ->where('status', 'finished')
@@ -39,15 +40,27 @@ class LeaderboardController extends Controller
         $latestFinished = $lastTwoFinished->first();
         $previousFinished = $lastTwoFinished->skip(1)->first();
 
-        $latestCutoff = $latestFinished?->kickoff_at;     // "nach dem letzten Spiel"
-        $previousCutoff = $previousFinished?->kickoff_at; // "nach dem Spiel davor"
+        $latestCutoff = $latestFinished?->kickoff_at;
+        $previousCutoff = $previousFinished?->kickoff_at;
 
-        // aktuelles Ranking (bis letztes finished Spiel; falls keins vorhanden: ohne cutoff)
-        $current = $this->buildRanking($season, $latestCutoff);
+        $ttlSeconds = 60;
 
-        // vorheriges Ranking (bis vorletztes finished Spiel; falls nicht vorhanden: delta = 0)
+        // ===== aktuelles Ranking =====
+        $current = LeaderboardCache::rememberRanking(
+            $season->id,
+            $latestCutoff?->timestamp,
+            $ttlSeconds,
+            fn() => $this->buildRanking($season, $latestCutoff)
+        );
+
+        // ===== vorheriges Ranking =====
         $previous = $previousCutoff
-            ? $this->buildRanking($season, $previousCutoff)
+            ? LeaderboardCache::rememberRanking(
+                $season->id,
+                $previousCutoff->timestamp,
+                $ttlSeconds,
+                fn() => $this->buildRanking($season, $previousCutoff)
+            )
             : $current;
 
         $prevRanks = collect($previous)
@@ -64,7 +77,7 @@ class LeaderboardController extends Controller
                 'delta' => $prevRank - $u['rank'], // + = hoch, - = runter
                 'is_me' => $u['id'] === $authId,
             ];
-        });
+        })->values();
 
         return response()->json([
             'season' => [
@@ -79,7 +92,7 @@ class LeaderboardController extends Controller
             ],
             'me' => $entries->firstWhere('is_me', true),
             'top3' => $entries->take(3)->values(),
-            'entries' => $entries->values(),
+            'entries' => $entries,
             'generated_at' => $now->toIso8601String(),
         ]);
     }
@@ -96,79 +109,89 @@ class LeaderboardController extends Controller
             return response()->json(['message' => 'No active season'], 404);
         }
 
-        $bets = $user->bets()
-            ->whereHas('game', function ($q) use ($season) {
-                $q->where('season_id', $season->id)
-                    ->where('status', 'finished');
-            })
-            ->with('game')
-            ->get();
+        $ttlSeconds = 60;
+        $cacheKey = "leaderboard:v1:userstats:season:{$season->id}:user:{$user->id}";
 
-        $stats = [
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'balance' => $user->balance,
-                'jokers_remaining' => $user->jokers_remaining,
-            ],
-            'season' => [
-                'id' => $season->id,
-                'name' => $season->name,
-            ],
-            'total_cost' => round($bets->sum('final_price'), 2),
-            'bet_count' => $bets->count(),
-            'exact_bets' => $bets->filter(fn($bet) => $bet->base_price === 0.00)->count(),
-            'tendency_bets' => $bets->filter(fn($bet) => $bet->base_price === 0.30)->count(),
-            'winner_bets' => $bets->filter(fn($bet) => $bet->base_price === 0.60)->count(),
-            'wrong_bets' => $bets->filter(fn($bet) => $bet->base_price === 1.00)->count(),
-            'jokers_used' => $user->jokers_used ?? [],
-            'position' => $user->getLeaderboardPosition($season),
-        ];
+        $stats = cache()->remember($cacheKey, $ttlSeconds, function () use ($user, $season) {
+            $bets = $user->bets()
+                ->whereHas('game', function ($q) use ($season) {
+                    $q->where('season_id', $season->id)
+                        ->where('status', 'finished');
+                })
+                ->get();
+
+            return [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'balance' => $user->balance,
+                    'jokers_remaining' => $user->jokers_remaining,
+                ],
+                'season' => [
+                    'id' => $season->id,
+                    'name' => $season->name,
+                ],
+                'total_cost' => round($bets->sum('final_price'), 2),
+                'bet_count' => $bets->count(),
+                'exact_bets' => $bets->where('base_price', 0.00)->count(),
+                'tendency_bets' => $bets->where('base_price', 0.30)->count(),
+                'winner_bets' => $bets->where('base_price', 0.60)->count(),
+                'wrong_bets' => $bets->where('base_price', 1.00)->count(),
+                'jokers_used' => $user->jokers_used ?? [],
+                'position' => $user->getLeaderboardPosition($season),
+            ];
+        });
 
         return response()->json($stats);
     }
 
     /**
-     * Build ranking for a season (optionally up to a cutoff kickoff_at)
+     * Build ranking for a season (SQL aggregation)
      */
     private function buildRanking(Season $season, $cutoff = null): array
     {
-        $users = User::with(['bets' => function ($query) use ($season, $cutoff) {
-            $query->whereHas('game', function ($q) use ($season, $cutoff) {
-                $q->where('season_id', $season->id)
-                    ->where('status', 'finished');
+        $rows = DB::table('users')
+            ->leftJoin('bets', 'bets.user_id', '=', 'users.id')
+            ->leftJoin('games', function ($join) use ($season, $cutoff) {
+                $join->on('games.id', '=', 'bets.game_id')
+                    ->where('games.season_id', '=', $season->id)
+                    ->where('games.status', '=', 'finished');
 
                 if ($cutoff) {
-                    $q->where('kickoff_at', '<=', $cutoff);
+                    $join->where('games.kickoff_at', '<=', $cutoff);
                 }
-            });
-        }])
-            ->where('is_admin', false)
-            ->get()
-            ->map(function ($user) {
-                $totalCost = round($user->bets->sum('final_price'), 2);
-                $betCount = $user->bets->count();
-                $exactBets = $user->bets->filter(fn($b) => $b->base_price === 0.00)->count();
-
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'total_cost' => $totalCost,
-                    'bet_count' => $betCount,
-                    'exact_bets' => $exactBets,
-                    'average_cost' => $betCount > 0 ? round($totalCost / $betCount, 2) : 0,
-                    'jokers_remaining' => $user->jokers_remaining,
-                ];
             })
-            ->sortBy('total_cost')
-            ->values()
-            ->map(function ($u, $i) {
-                return [
-                    ...$u,
-                    'rank' => $i + 1,
-                ];
-            });
+            ->where('users.is_admin', false)
+            ->groupBy('users.id', 'users.name', 'users.jokers_remaining')
+            ->selectRaw('
+                users.id,
+                users.name,
+                users.jokers_remaining,
+                COALESCE(ROUND(SUM(bets.final_price), 2), 0) as total_cost,
+                COUNT(bets.id) as bet_count,
+                SUM(CASE WHEN bets.base_price = 0.00 THEN 1 ELSE 0 END) as exact_bets
+            ')
+            ->orderBy('total_cost')
+            ->orderByDesc('exact_bets')
+            ->orderBy('users.id')
+            ->get();
 
-        return $users->toArray();
+        $rank = 1;
+
+        return $rows->map(function ($r) use (&$rank) {
+            $betCount = (int) $r->bet_count;
+            $totalCost = (float) $r->total_cost;
+
+            return [
+                'id' => (int) $r->id,
+                'name' => (string) $r->name,
+                'total_cost' => $totalCost,
+                'bet_count' => $betCount,
+                'exact_bets' => (int) $r->exact_bets,
+                'average_cost' => $betCount > 0 ? round($totalCost / $betCount, 2) : 0.0,
+                'jokers_remaining' => (int) $r->jokers_remaining,
+                'rank' => $rank++,
+            ];
+        })->toArray();
     }
 }
