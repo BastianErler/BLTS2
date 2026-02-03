@@ -6,37 +6,46 @@
             <!-- Season Picker -->
             <div class="flex items-center justify-between gap-3">
                 <div class="min-w-0">
-                    <div class="text-sm font-semibold text-white">
-                        Saison
-                    </div>
+                    <div class="text-sm font-semibold text-white">Saison</div>
                     <div class="text-xs text-white/60">
                         Rangliste & Auswertung je Saison
                     </div>
                 </div>
 
                 <div class="shrink-0">
-                    <select
-                        v-model="selectedSeasonId"
-                        class="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none focus:border-white/20"
-                        :disabled="seasonsLoading || seasons.length === 0"
-                        @change="onSeasonChange"
-                    >
-                        <option
-                            v-if="seasonsLoading"
-                            :value="null"
-                            disabled
+                    <div class="relative">
+                        <select
+                            v-model="selectedSeasonId"
+                            class="h-10 w-[140px] appearance-none rounded-xl border border-white/10 bg-white/5 px-3 pr-9 text-sm font-semibold text-white outline-none focus:border-white/20"
+                            :disabled="seasonsLoading || seasons.length === 0"
+                            @change="onSeasonChange"
                         >
-                            Lade…
-                        </option>
+                            <option
+                                v-if="seasonsLoading"
+                                :value="null"
+                                disabled
+                            >
+                                Lade…
+                            </option>
 
-                        <option
-                            v-for="s in seasons"
-                            :key="s.id"
-                            :value="s.id"
+                            <option
+                                v-for="s in seasons"
+                                :key="s.id"
+                                :value="s.id"
+                                class="bg-navy-900 text-white"
+                            >
+                                {{ s.name }}{{ s.is_active ? " · aktiv" : "" }}
+                            </option>
+                        </select>
+
+                        <!-- Chevron -->
+                        <span
+                            class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/70"
+                            aria-hidden="true"
                         >
-                            {{ s.name }} <span v-if="s.is_active">· aktiv</span>
-                        </option>
-                    </select>
+                            ▾
+                        </span>
+                    </div>
                 </div>
             </div>
 
