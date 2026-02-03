@@ -33,6 +33,7 @@ class GameResource extends JsonResource
             'is_derby' => $this->is_derby,
             'is_playoff' => $this->is_playoff,
             'can_bet' => $this->canBet(),
+            'bet_deadline_at' => $this->betDeadline()->toIso8601String(),
             'is_finished' => $this->isFinished(),
             'winner' => $this->winner,
             'goal_difference' => $this->goalDifference,

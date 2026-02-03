@@ -271,10 +271,10 @@ const sortedBets = computed(() => {
 /* ================= HELPERS ================= */
 
 const eisbaeren: Team = {
-    id: 1,
+    id: 4,
     name: "Eisbären Berlin",
     short_name: "EBB",
-    logo_url: "1.svg",
+    logo_url: "team_EBB.svg",
 };
 
 function formatKickoff(iso?: string) {

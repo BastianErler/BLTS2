@@ -75,15 +75,22 @@ class Game extends Model
     }
 
     /**
-     * Check if bets can still be placed
+     * Bet deadline is 6 hours before kickoff.
+     */
+    public function betDeadline(): Carbon
+    {
+        return $this->kickoff_at->copy()->subHours(6);
+    }
+
+    /**
+     * Check if bets can still be placed (until kickoff - 6h).
      */
     public function canBet(): bool
     {
-        return $this->status === 'scheduled' &&
-            $this->kickoff_at->isFuture() &&
-            now()->diffInMinutes($this->kickoff_at) >= 60; // mindestens 60 Minuten in der Zukunft
+        return $this->status === 'scheduled'
+            && $this->kickoff_at !== null
+            && now()->lt($this->betDeadline());
     }
-
     /**
      * Get winner (eisbaeren or opponent or draw)
      */

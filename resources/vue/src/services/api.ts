@@ -59,6 +59,7 @@ export interface Game {
     is_derby: boolean;
     is_playoff: boolean;
     can_bet: boolean;
+    bet_deadline_at: string;
     winner?: "eisbaeren" | "opponent" | "draw" | null;
 }
 

@@ -35,12 +35,12 @@
                 <!-- LEFT TEAM -->
                 <div class="flex flex-col items-center text-center">
                     <div
-                        class="h-11 w-11 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center overflow-hidden"
+                        class="h-20 w-20 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center overflow-hidden"
                     >
                         <img
                             :src="leftLogo"
                             :alt="leftAlt"
-                            class="h-8 w-8 object-contain"
+                            class="h-16 w-16 object-contain"
                             loading="lazy"
                         />
                     </div>
@@ -78,7 +78,9 @@
                             v-if="showCountdown"
                             class="mt-1 text-[11px] text-white/70"
                         >
-                            <CountdownTimer :target-date="game.kickoff_at" />
+                            <CountdownTimer
+                                :target-date="game.bet_deadline_at"
+                            />
                         </div>
                     </div>
 
@@ -93,12 +95,12 @@
                 <!-- RIGHT TEAM -->
                 <div class="flex flex-col items-center text-center min-w-0">
                     <div
-                        class="h-11 w-11 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center overflow-hidden"
+                        class="h-20 w-20 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center overflow-hidden"
                     >
                         <img
                             :src="rightLogo"
                             :alt="rightAlt"
-                            class="h-8 w-8 object-contain"
+                            class="h-16 w-16 object-contain"
                             loading="lazy"
                         />
                     </div>
@@ -229,9 +231,14 @@ const gameTime = computed(() => {
     });
 });
 
-const showCountdown = computed(
-    () => props.game.status === "scheduled" && props.game.can_bet,
-);
+const showCountdown = computed(() => {
+    if (props.game.status !== "scheduled") return false;
+    if (!props.game.can_bet) return false;
+
+    const deadline = new Date(props.game.bet_deadline_at).getTime();
+    return Date.now() < deadline;
+});
+
 const showBetButton = computed(
     () => props.game.status === "scheduled" && props.game.can_bet,
 );
@@ -240,10 +247,10 @@ const showBetButton = computed(
 // is_home: Eisbären links (home), opponent rechts
 // away: opponent links, Eisbären rechts
 const eisbaerenTeam = computed<Team>(() => ({
-    id: 1,
+    id: 4,
     name: "Eisbären Berlin",
     short_name: "EBB",
-    logo_url: "1.svg",
+    logo_url: "team_EBB.svg",
 }));
 
 const isHomeGame = computed(() => props.game.is_home);

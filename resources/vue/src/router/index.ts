@@ -13,6 +13,12 @@ import LoginView from "../views/Login.vue";
 
 const routes: RouteRecordRaw[] = [
     {
+        path: "/login",
+        name: "login",
+        component: LoginView,
+        meta: { pageTitle: "Login", pageSubtitle: null, public: true },
+    },
+    {
         path: "/",
         name: "home",
         component: HomeView,
