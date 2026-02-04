@@ -3,48 +3,31 @@ import vue from "@vitejs/plugin-vue";
 import { fileURLToPath, URL } from "node:url";
 import { VitePWA } from "vite-plugin-pwa";
 
+const rootDir = fileURLToPath(new URL("./resources/vue", import.meta.url));
+
 export default defineConfig({
-    root: "resources/vue",
+    root: rootDir,
 
     plugins: [
         vue(),
 
         VitePWA({
-            /**
-             * 🔑 EXTREM WICHTIG
-             * Wir benutzen InjectManifest → dein eigener Service Worker
-             */
             strategies: "injectManifest",
 
-            /**
-             * Pfad zu deinem Custom-SW
-             */
+            // relativ zu rootDir
             srcDir: "src",
             filename: "sw.ts",
 
-            injectManifest: {
-                /**
-                 * Ziel-Datei im Build (dist / dev-dist)
-                 */
+            workbox: {
                 swDest: "sw.js",
             },
 
-            /**
-             * SW Registrierung automatisch
-             * → KEIN eigenes register() im Code!
-             */
             registerType: "autoUpdate",
             injectRegister: "auto",
 
-            /**
-             * PWA / Scope
-             */
             scope: "/",
             base: "/",
 
-            /**
-             * Assets
-             */
             includeAssets: [
                 "favicon.ico",
                 "apple-touch-icon.png",
@@ -53,9 +36,6 @@ export default defineConfig({
                 "pwa-maskable-512x512.png",
             ],
 
-            /**
-             * Manifest
-             */
             manifestFilename: "manifest.webmanifest",
             manifest: {
                 name: "Blueliner Tippspiel",
@@ -87,14 +67,8 @@ export default defineConfig({
                 ],
             },
 
-            /**
-             * DEV MODE (iOS & Push Debug!)
-             */
             devOptions: {
                 enabled: true,
-                /**
-                 * Muss module sein, sonst iOS Chaos
-                 */
                 type: "module",
             },
         }),
