@@ -6,7 +6,9 @@ use App\Http\Controllers\Api\GameController;
 use App\Http\Controllers\Api\LeaderboardController;
 use App\Http\Controllers\Api\SeasonController;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\AppConfigController;
+use App\Http\Controllers\Api\PushSubscriptionController;
+use App\Http\Controllers\Api\PushTestController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -23,6 +25,14 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
+
+    Route::get('/app-config', [AppConfigController::class, 'show'])->name('api.app-config');
+
+    Route::post('/push/subscribe', [PushSubscriptionController::class, 'store']);
+
+
+    Route::post('/push/test', [PushTestController::class, 'send'])
+        ->name('api.push.test');
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -50,4 +60,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //Season
     Route::get('/seasons', [SeasonController::class, 'index']);
+});
+
+Route::post('/push-debug', function (Request $request) {
+    Log::info('SW push-debug', $request->all());
+    return response()->json(['ok' => true]);
 });

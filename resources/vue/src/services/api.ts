@@ -40,6 +40,20 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+export interface MeResponse {
+    id: number;
+    name: string;
+    email: string;
+    mobile: string | null;
+    is_admin: boolean;
+    balance: string | number;
+    jokers_remaining: number;
+    jokers_used: any[];
+    wants_email_reminder: boolean | number;
+    wants_sms_reminder: boolean | number;
+    bet_count: number;
+}
+
 export interface Team {
     id: number;
     name: string;
@@ -134,6 +148,31 @@ export interface Season {
     end_date: string | null;
 }
 
+export type AppConfigResponse = {
+    pwa?: {
+        debug?: boolean;
+        push_test?: boolean;
+        vapid_public_key?: string | null;
+        env?: string | null;
+    };
+};
+
+export const appConfigApi = {
+    get: () => api.get<AppConfigResponse>("/app-config"),
+};
+
+export const pushApi = {
+    subscribe: (data: {
+        endpoint: string;
+        keys: { p256dh: string; auth: string };
+        contentEncoding?: string;
+        device?: "ios" | "android" | "desktop";
+    }) => api.post("/push/subscribe", data),
+
+    test: (data?: { title?: string; body?: string; url?: string }) =>
+        api.post("/push/test", data ?? {}),
+};
+
 // Games API
 export const gamesApi = {
     getAll: (params?: {
@@ -184,7 +223,9 @@ export const authApi = {
 
     logout: () => api.post("/logout"),
 
-    getMe: () => api.get("/me"),
+    me: () => api.get<MeResponse>("/me"),
+
+    getMe: () => api.get<MeResponse>("/me"),
 };
 
 export const seasonsApi = {

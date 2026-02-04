@@ -4,4 +4,13 @@ import router from "./router";
 
 import "../app.css";
 
-createApp(App).use(router).mount("#app");
+import { usePwaInstall } from "@/pwa/usePwaInstall";
+
+const app = createApp(App);
+
+app.use(router);
+app.mount("#app");
+
+// PWA Install Hook initialisieren (einmal global)
+const pwa = usePwaInstall();
+pwa.init();
