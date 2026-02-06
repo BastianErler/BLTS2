@@ -9,6 +9,7 @@ import GameView from "../views/GameView.vue";
 import BetsView from "../views/BetsView.vue";
 import LeaderboardView from "../views/LeaderboardView.vue";
 import ProfileView from "../views/ProfileView.vue";
+import NotificationSettingsView from "../views/NotificationSettingsView.vue";
 import LoginView from "../views/Login.vue";
 
 const routes: RouteRecordRaw[] = [
@@ -56,6 +57,17 @@ const routes: RouteRecordRaw[] = [
             pageTitle: "Profil",
             pageSubtitle:
                 "Überblick über Guthaben, Zahlungen und deine Tipp-Statistiken.",
+        },
+    },
+
+    // Notifications as "submenu" under profile
+    {
+        path: "/profile/notifications",
+        name: "profile-notifications",
+        component: NotificationSettingsView,
+        meta: {
+            pageTitle: "Benachrichtigungen",
+            pageSubtitle: "Erinnerungen & Ergebnis-Infos verwalten",
         },
     },
 ];

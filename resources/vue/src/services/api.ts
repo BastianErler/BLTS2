@@ -13,6 +13,7 @@ const api = axios.create({
         "Content-Type": "application/json",
     },
 });
+
 api.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -21,7 +22,6 @@ api.interceptors.response.use(
         if (status === 401) {
             localStorage.removeItem("auth_token");
 
-            // falls du Vue Router importieren willst: besser über window:
             if (window.location.pathname !== "/login") {
                 window.location.href = "/login";
             }
@@ -96,6 +96,7 @@ export interface UserStats {
         name: string;
         balance: number;
         jokers_remaining: number;
+        jokers_used?: any[];
     };
     season: {
         id: number;
@@ -107,6 +108,7 @@ export interface UserStats {
     tendency_bets: number;
     winner_bets: number;
     wrong_bets: number;
+    jokers_used?: any[];
     position: number;
 }
 
@@ -148,29 +150,21 @@ export interface Season {
     end_date: string | null;
 }
 
-export type AppConfigResponse = {
-    pwa?: {
-        debug?: boolean;
-        push_test?: boolean;
-        vapid_public_key?: string | null;
-        env?: string | null;
-    };
+export type NotificationSettings = {
+    v?: number;
+    push_enabled: boolean;
+    remind_before_deadline: boolean;
+    remind_before_deadline_minutes: number;
+    remind_on_game_start_if_no_bet: boolean;
+    notify_on_bet_result: boolean;
+    notify_on_rank_change: boolean;
+    rank_change_threshold: number;
 };
 
-export const appConfigApi = {
-    get: () => api.get<AppConfigResponse>("/app-config"),
-};
-
-export const pushApi = {
-    subscribe: (data: {
-        endpoint: string;
-        keys: { p256dh: string; auth: string };
-        contentEncoding?: string;
-        device?: "ios" | "android" | "desktop";
-    }) => api.post("/push/subscribe", data),
-
-    test: (data?: { title?: string; body?: string; url?: string }) =>
-        api.post("/push/test", data ?? {}),
+export const notificationSettingsApi = {
+    get: () => api.get<NotificationSettings>("/notification-settings"),
+    update: (data: Partial<NotificationSettings>) =>
+        api.patch<NotificationSettings>("/notification-settings", data),
 };
 
 // Games API
@@ -212,8 +206,14 @@ export const leaderboardApi = {
     get: (params?: { season_id?: number }) =>
         api.get<LeaderboardResponse>("/leaderboard", { params }),
 
+    // FIX: Stats endpoints hängen unter /leaderboard/user-stats...
     getUserStats: (userId?: number, params?: { season_id?: number }) =>
-        api.get<UserStats>(userId ? `/stats/${userId}` : "/stats", { params }),
+        api.get<UserStats>(
+            userId
+                ? `/leaderboard/user-stats/${userId}`
+                : "/leaderboard/user-stats",
+            { params },
+        ),
 };
 
 // Auth API

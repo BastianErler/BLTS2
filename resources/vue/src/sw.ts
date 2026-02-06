@@ -7,8 +7,6 @@ import { createHandlerBoundToURL } from "workbox-precaching";
 
 declare const self: ServiceWorkerGlobalScope;
 
-const SW_VERSION = "2026-02-04-1";
-
 self.skipWaiting();
 clientsClaim();
 
@@ -16,42 +14,12 @@ clientsClaim();
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
-// --- messaging helpers ---
-async function broadcast(message: any) {
-    const allClients = await self.clients.matchAll({
-        type: "window",
-        includeUncontrolled: true,
-    });
-    for (const c of allClients) c.postMessage(message);
-}
-
-self.addEventListener("message", (event) => {
-    const data = event.data;
-
-    if (data?.type === "sw-status") {
-        event.source?.postMessage?.({
-            type: "sw-status",
-            v: SW_VERSION,
-            at: new Date().toISOString(),
-        });
-        return;
-    }
-
-    broadcast({
-        type: "sw-message",
-        v: SW_VERSION,
-        at: new Date().toISOString(),
-        data,
-    });
-});
-
-setInterval(() => {
-    broadcast({
-        type: "sw-heartbeat",
-        v: SW_VERSION,
-        at: new Date().toISOString(),
-    });
-}, 5000);
+// optional: navigation fallback (offline page)
+registerRoute(
+    new NavigationRoute(createHandlerBoundToURL("/offline.html"), {
+        denylist: [/^\/api\//],
+    }),
+);
 
 // =========================
 // Push Notifications
@@ -99,17 +67,7 @@ self.addEventListener("push", (event) => {
                 tag: data.tag ?? "blts-push",
                 data: {
                     url,
-                    v: SW_VERSION,
-                    receivedAt: new Date().toISOString(),
                 },
-            });
-
-            // Optional debug back to open tabs
-            broadcast({
-                type: "sw-push-received",
-                v: SW_VERSION,
-                at: new Date().toISOString(),
-                payload: { title, body, url },
             });
         })(),
     );

@@ -10,8 +10,17 @@ class TeamSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
-        Team::truncate();
+        $driver = DB::getDriverName();
+
+        // Disable FK checks in a DB-safe way
+        if ($driver === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        } elseif ($driver === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = OFF');
+        }
+
+        // Use delete() instead of truncate() to avoid SQLite edge cases
+        Team::query()->delete();
 
         $teams = [
             ['id' => 1,  'name' => 'Augsburger Panther',        'short_name' => 'AUG', 'logo_url' => 'team_AUG.svg'],
@@ -37,6 +46,11 @@ class TeamSeeder extends Seeder
             Team::create($team);
         }
 
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        // Re-enable FK checks
+        if ($driver === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        } elseif ($driver === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = ON');
+        }
     }
 }

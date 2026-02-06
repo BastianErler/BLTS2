@@ -34,11 +34,19 @@ class Game extends Model
         'kickoff_at' => 'datetime',
         'eisbaeren_goals' => 'integer',
         'opponent_goals' => 'integer',
+
+        // NOTE: Falls diese Spalten nicht in `games` existieren, kannst du sie rausnehmen.
+        // Laravel crasht dadurch nicht, aber es ist verwirrend.
         'joker_data' => 'array',
         'base_price' => 'decimal:2',
         'multiplier' => 'decimal:2',
         'final_price' => 'decimal:2',
         'locked_at' => 'datetime',
+    ];
+
+    // Optional: wenn du bet_deadline_at im JSON/TS verfügbar haben willst
+    protected $appends = [
+        'bet_deadline_at',
     ];
 
     public function opponent(): BelongsTo
@@ -61,9 +69,9 @@ class Game extends Model
      */
     public function isFinished(): bool
     {
-        return $this->status === 'finished' &&
-            $this->eisbaeren_goals !== null &&
-            $this->opponent_goals !== null;
+        return $this->status === 'finished'
+            && $this->eisbaeren_goals !== null
+            && $this->opponent_goals !== null;
     }
 
     /**
@@ -71,15 +79,25 @@ class Game extends Model
      */
     public function isPast(): bool
     {
-        return $this->kickoff_at->isPast();
+        return $this->kickoff_at?->isPast() ?? false;
     }
 
     /**
      * Bet deadline is 6 hours before kickoff.
      */
-    public function betDeadline(): Carbon
+    public function betDeadline(): ?Carbon
     {
+        if (!$this->kickoff_at) return null;
         return $this->kickoff_at->copy()->subHours(6);
+    }
+
+    /**
+     * Accessor: bet_deadline_at for JSON / TS.
+     */
+    public function getBetDeadlineAtAttribute(): ?string
+    {
+        $d = $this->betDeadline();
+        return $d ? $d->toIso8601String() : null;
     }
 
     /**
@@ -87,10 +105,13 @@ class Game extends Model
      */
     public function canBet(): bool
     {
+        $deadline = $this->betDeadline();
+
         return $this->status === 'scheduled'
-            && $this->kickoff_at !== null
-            && now()->lt($this->betDeadline());
+            && $deadline !== null
+            && now()->lt($deadline);
     }
+
     /**
      * Get winner (eisbaeren or opponent or draw)
      */

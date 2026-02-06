@@ -1,235 +1,5 @@
 <template>
     <div class="space-y-4">
-        <!-- =================== ADMIN DEBUG (nur wenn Backend es erlaubt) =================== -->
-        <section
-            v-if="pwaDebug"
-            class="rounded-[28px] border border-white/10 bg-navy-800/70 p-4 backdrop-blur-md"
-        >
-            <div class="flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                    <div class="text-sm font-semibold text-white">
-                        PWA / Push Debug
-                    </div>
-                    <div class="text-xs text-white/60">
-                        Admin Tools (serverseitig aktiviert)
-                    </div>
-                </div>
-
-                <span
-                    class="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80"
-                >
-                    {{ envLabel }}
-                </span>
-            </div>
-
-            <div class="my-4 h-px bg-white/10"></div>
-
-            <div class="space-y-3 text-sm">
-                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="grid grid-cols-2 gap-2 text-xs text-white/70">
-                        <div>installed/standalone</div>
-                        <div class="text-right text-white/90">
-                            {{ isInstalled ? "yes" : "no" }}
-                        </div>
-
-                        <div>service worker</div>
-                        <div class="text-right text-white/90">
-                            {{ swStatus }}
-                        </div>
-
-                        <div>notification permission</div>
-                        <div class="text-right text-white/90">
-                            {{ notifPermission }}
-                        </div>
-
-                        <div>push test enabled</div>
-                        <div class="text-right text-white/90">
-                            {{ pushTestEnabled ? "yes" : "no" }}
-                        </div>
-
-                        <div>vapid key</div>
-                        <div class="text-right text-white/90">
-                            {{ vapidPublicKey ? "present" : "missing" }}
-                        </div>
-
-                        <div>sw version (from SW)</div>
-                        <div class="text-right text-white/90">
-                            {{ swClientStatus.swVersion ?? "—" }}
-                        </div>
-
-                        <div>controller scriptURL</div>
-                        <div class="text-right text-white/90">
-                            {{ swClientStatus.controllerScriptUrl ?? "—" }}
-                        </div>
-
-                        <div>controlled by SW</div>
-                        <div class="text-right text-white/90">
-                            {{ controlledBySw ? "yes" : "no" }}
-                        </div>
-
-                        <div>controller state</div>
-                        <div class="text-right text-white/90">
-                            {{ swClientStatus.controllerState ?? "—" }}
-                        </div>
-
-                        <div>reg active</div>
-                        <div class="text-right text-white/90">
-                            {{ swClientStatus.regActiveState ?? "—" }}
-                        </div>
-
-                        <div>reg waiting</div>
-                        <div class="text-right text-white/90">
-                            {{ swClientStatus.regWaitingState ?? "—" }}
-                        </div>
-
-                        <div>reg installing</div>
-                        <div class="text-right text-white/90">
-                            {{ swClientStatus.regInstallingState ?? "—" }}
-                        </div>
-
-                        <div>reg active scriptURL</div>
-                        <div class="text-right text-white/90">
-                            {{ consoleLike?.activeScriptUrl ?? "—" }}
-                        </div>
-
-                        <div>reg scope</div>
-                        <div class="text-right text-white/90">
-                            {{ consoleLike?.regScope ?? "—" }}
-                        </div>
-                    </div>
-
-                    <div class="mt-3 flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            class="btn-secondary"
-                            @click="reloadApp"
-                        >
-                            Reload App
-                        </button>
-
-                        <button
-                            type="button"
-                            class="btn-secondary"
-                            @click="refreshAllDebug"
-                        >
-                            Refresh
-                        </button>
-
-                        <button
-                            type="button"
-                            class="btn-secondary"
-                            @click="requestNotificationPermission"
-                        >
-                            Permission anfragen
-                        </button>
-
-                        <button
-                            type="button"
-                            class="btn-secondary"
-                            @click="subscribePush"
-                        >
-                            Push Subscribe
-                        </button>
-
-                        <button
-                            v-if="pushTestEnabled"
-                            type="button"
-                            class="btn-secondary"
-                            @click="sendTestPush"
-                        >
-                            Test Push (später)
-                        </button>
-
-                        <button
-                            type="button"
-                            class="btn-secondary"
-                            @click="pingServiceWorker"
-                        >
-                            Ping SW
-                        </button>
-
-                        <button
-                            type="button"
-                            class="btn-secondary"
-                            @click="requestSwStatus"
-                        >
-                            SW Status
-                        </button>
-
-                        <button
-                            type="button"
-                            class="btn-secondary"
-                            @click="updateServiceWorker"
-                        >
-                            SW Update
-                        </button>
-
-                        <button
-                            type="button"
-                            class="btn-secondary"
-                            @click="unregisterServiceWorker"
-                        >
-                            SW Unregister
-                        </button>
-                    </div>
-
-                    <div v-if="pushInfo" class="mt-3 text-xs text-emerald-200">
-                        {{ pushInfo }}
-                    </div>
-                    <div v-if="pushError" class="mt-3 text-xs text-rose-200">
-                        {{ pushError }}
-                    </div>
-                </div>
-
-                <div
-                    v-if="pushSubscriptionJson"
-                    class="rounded-2xl border border-white/10 bg-white/5 p-4"
-                >
-                    <div class="text-xs font-semibold text-white/80 mb-2">
-                        Push Subscription
-                    </div>
-                    <pre
-                        class="text-[11px] leading-snug text-white/70 whitespace-pre-wrap break-all"
-                        >{{ pushSubscriptionJson }}</pre
-                    >
-
-                    <div
-                        v-if="swClientStatus.lastEvent"
-                        class="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4"
-                    >
-                        <div class="text-xs font-semibold text-white/80 mb-2">
-                            SW Debug (last event)
-                        </div>
-                        <pre
-                            class="text-[11px] leading-snug text-white/70 whitespace-pre-wrap break-all"
-                            >{{
-                                JSON.stringify(
-                                    swClientStatus.lastEvent,
-                                    null,
-                                    2,
-                                )
-                            }}</pre
-                        >
-                    </div>
-
-                    <div
-                        v-if="swClientStatus.log.length"
-                        class="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4"
-                    >
-                        <div class="text-xs font-semibold text-white/80 mb-2">
-                            SW Debug Log (latest first)
-                        </div>
-                        <pre
-                            class="text-[11px] leading-snug text-white/70 whitespace-pre-wrap break-all"
-                            >{{
-                                JSON.stringify(swClientStatus.log, null, 2)
-                            }}</pre
-                        >
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <!-- =================== FINANZEN / KONTO =================== -->
         <section
             class="rounded-[28px] border border-white/10 bg-navy-800/70 p-4 backdrop-blur-md"
@@ -305,12 +75,16 @@
                     </div>
 
                     <div class="mt-3 flex flex-wrap gap-2">
-                        <button type="button" class="btn-primary">
+                        <button type="button" class="btn-primary" disabled>
                             Einzahlung hinzufügen
                         </button>
-                        <button type="button" class="btn-secondary">
+                        <button type="button" class="btn-secondary" disabled>
                             Zahlungen ansehen
                         </button>
+                    </div>
+
+                    <div class="mt-2 text-xs text-white/50">
+                        Einzahlungen kann nur der Admin hinzufügen.
                     </div>
                 </div>
             </div>
@@ -461,9 +235,17 @@
                             </div>
                         </div>
 
-                        <button type="button" class="btn-secondary">
+                        <button
+                            type="button"
+                            class="btn-secondary"
+                            @click="router.push('/profile/notifications')"
+                        >
                             Verwalten
                         </button>
+                    </div>
+
+                    <div class="mt-2 text-xs text-white/50">
+                        Verwaltung kommt als eigene Seite.
                     </div>
                 </div>
 
@@ -478,9 +260,13 @@
                             </div>
                         </div>
 
-                        <button type="button" class="btn-secondary">
+                        <button type="button" class="btn-secondary" disabled>
                             Bearbeiten
                         </button>
+                    </div>
+
+                    <div class="mt-2 text-xs text-white/50">
+                        Kommt später (Profil-Editing).
                     </div>
                 </div>
 
@@ -715,16 +501,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import {
-    authApi,
-    leaderboardApi,
-    appConfigApi,
-    pushApi,
-    type UserStats,
-    type AppConfigResponse,
-} from "@/services/api";
+import { authApi, leaderboardApi, type UserStats } from "@/services/api";
 import { usePwaInstall } from "@/pwa/usePwaInstall";
-import { urlBase64ToUint8Array } from "@/pwa/push";
 
 const { canInstall, init, triggerInstall } = usePwaInstall();
 const router = useRouter();
@@ -813,451 +591,6 @@ async function handleInstallClick() {
     openInstallHelp();
 }
 
-/* ======= BACKEND APP CONFIG (Admin toggles) ======= */
-const appConfig = ref<AppConfigResponse | null>(null);
-
-async function loadAppConfig() {
-    try {
-        const res = await appConfigApi.get();
-        appConfig.value = res.data;
-    } catch {
-        appConfig.value = null;
-    }
-}
-
-const pwaDebug = computed(() => appConfig.value?.pwa?.debug === true);
-const pushTestEnabled = computed(
-    () => appConfig.value?.pwa?.push_test === true,
-);
-const vapidPublicKey = computed(
-    () => appConfig.value?.pwa?.vapid_public_key ?? null,
-);
-const appEnvLabel = computed(() => appConfig.value?.pwa?.env ?? "");
-const envLabel = computed(() => appEnvLabel.value || "—");
-
-/* ======= UI helpers ======= */
-const pushSending = ref(false);
-const pushInfo = ref<string>("");
-const pushError = ref<string>("");
-
-function setInfo(msg: string) {
-    pushInfo.value = msg;
-    window.setTimeout(() => {
-        if (pushInfo.value === msg) pushInfo.value = "";
-    }, 4000);
-}
-
-function setError(msg: string) {
-    pushError.value = msg;
-    window.setTimeout(() => {
-        if (pushError.value === msg) pushError.value = "";
-    }, 6000);
-}
-
-function reloadApp() {
-    window.location.reload();
-}
-
-/* ======= PUSH / PWA DEBUG VALUES ======= */
-const notifPermission = ref<NotificationPermission | "unsupported">(
-    "unsupported",
-);
-const swStatus = ref<"unsupported" | "no-sw" | "ready" | "installing">(
-    "unsupported",
-);
-const swScope = ref<string>("—");
-const pushSubscriptionJson = ref<string>("");
-
-/* ======= SW Debug plumbing ======= */
-type SwClientStatus = {
-    controllerScriptUrl: string | null;
-    controllerState: string | null;
-
-    swVersion: string | null;
-    swScope: string | null;
-    swStatusAt: string | null;
-
-    regScope: string | null;
-    regActiveScriptUrl: string | null;
-    regActiveState: string | null;
-    regWaitingScriptUrl: string | null;
-    regWaitingState: string | null;
-    regInstallingScriptUrl: string | null;
-    regInstallingState: string | null;
-
-    lastEvent: any | null;
-    log: any[];
-};
-
-const swClientStatus = ref<SwClientStatus>({
-    controllerScriptUrl: null,
-    controllerState: null,
-
-    swVersion: null,
-    swScope: null,
-    swStatusAt: null,
-
-    regScope: null,
-    regActiveScriptUrl: null,
-    regActiveState: null,
-    regWaitingScriptUrl: null,
-    regWaitingState: null,
-    regInstallingScriptUrl: null,
-    regInstallingState: null,
-
-    lastEvent: null,
-    log: [],
-});
-
-const consoleLike = ref<{
-    regScope: string | null;
-    activeScriptUrl: string | null;
-    waitingScriptUrl: string | null;
-    installingScriptUrl: string | null;
-} | null>(null);
-
-function pushLog(msg: any) {
-    swClientStatus.value.lastEvent = msg;
-    swClientStatus.value.log = [msg, ...swClientStatus.value.log].slice(0, 30);
-}
-
-const controlledBySw = computed(() => {
-    return !!navigator.serviceWorker?.controller;
-});
-
-function refreshControllerInfo() {
-    const controller = navigator.serviceWorker?.controller as any;
-    swClientStatus.value.controllerScriptUrl = controller?.scriptURL ?? null;
-    swClientStatus.value.controllerState = controller?.state ?? null;
-}
-
-async function refreshRegistrationInfo() {
-    if (!("serviceWorker" in navigator)) return;
-
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) {
-        swClientStatus.value.regScope = null;
-        swClientStatus.value.regActiveScriptUrl = null;
-        swClientStatus.value.regActiveState = null;
-        swClientStatus.value.regWaitingScriptUrl = null;
-        swClientStatus.value.regWaitingState = null;
-        swClientStatus.value.regInstallingScriptUrl = null;
-        swClientStatus.value.regInstallingState = null;
-        consoleLike.value = null;
-        return;
-    }
-
-    swClientStatus.value.regScope = reg.scope ?? null;
-
-    swClientStatus.value.regActiveScriptUrl =
-        (reg.active as any)?.scriptURL ?? null;
-    swClientStatus.value.regActiveState = (reg.active as any)?.state ?? null;
-
-    swClientStatus.value.regWaitingScriptUrl =
-        (reg.waiting as any)?.scriptURL ?? null;
-    swClientStatus.value.regWaitingState = (reg.waiting as any)?.state ?? null;
-
-    swClientStatus.value.regInstallingScriptUrl =
-        (reg.installing as any)?.scriptURL ?? null;
-    swClientStatus.value.regInstallingState =
-        (reg.installing as any)?.state ?? null;
-
-    // "Console light"
-    consoleLike.value = {
-        regScope: reg.scope ?? null,
-        activeScriptUrl: (reg.active as any)?.scriptURL ?? null,
-        waitingScriptUrl: (reg.waiting as any)?.scriptURL ?? null,
-        installingScriptUrl: (reg.installing as any)?.scriptURL ?? null,
-    };
-}
-
-function attachSwMessageListenerOnce() {
-    if (!("serviceWorker" in navigator)) return;
-
-    const key = "__blueliner_sw_msg_listener";
-    if ((window as any)[key]) return;
-    (window as any)[key] = true;
-
-    navigator.serviceWorker.addEventListener("message", (event) => {
-        const msg = event.data;
-        if (!msg?.type) return;
-
-        if (msg.type === "sw-status") {
-            swClientStatus.value.swVersion = msg.v ?? null;
-            swClientStatus.value.swScope = msg.registrationScope ?? null;
-            swClientStatus.value.swStatusAt = msg.at ?? null;
-            pushLog(msg);
-
-            refreshControllerInfo();
-            refreshRegistrationInfo();
-            return;
-        }
-
-        if (msg.type === "pong") {
-            swClientStatus.value.swVersion =
-                msg.v ?? swClientStatus.value.swVersion;
-            swClientStatus.value.swStatusAt =
-                msg.at ?? swClientStatus.value.swStatusAt;
-            pushLog(msg);
-
-            refreshControllerInfo();
-            refreshRegistrationInfo();
-            return;
-        }
-
-        if (
-            msg.type === "push-received" ||
-            msg.type === "notification-shown" ||
-            msg.type === "notification-error" ||
-            msg.type === "ui-note"
-        ) {
-            if (msg.v) swClientStatus.value.swVersion = msg.v;
-            pushLog(msg);
-            return;
-        }
-    });
-}
-
-/**
- * Wichtig: sendet an controller, sonst fallback an reg.active/waiting/installing
- * (damit iOS ohne controller trotzdem Messages annimmt)
- */
-async function postToAnyWorker(message: any) {
-    if (!("serviceWorker" in navigator)) throw new Error("SW nicht verfügbar");
-
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) throw new Error("Kein SW registriert");
-
-    if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage(message);
-        return;
-    }
-
-    const w = reg.active ?? reg.waiting ?? reg.installing;
-    if (!w)
-        throw new Error(
-            "Keine SW Instanz (active/waiting/installing) vorhanden",
-        );
-
-    w.postMessage(message);
-
-    pushLog({
-        type: "ui-note",
-        at: new Date().toISOString(),
-        message:
-            "Kein controller (iOS). Message an reg.active/waiting/installing gesendet.",
-    });
-}
-
-async function requestSwStatus() {
-    pushError.value = "";
-    try {
-        await postToAnyWorker({ type: "get-status" });
-    } catch (e: any) {
-        pushError.value = e?.message ?? String(e);
-    }
-}
-
-async function pingServiceWorker() {
-    pushError.value = "";
-    try {
-        await postToAnyWorker({ type: "ping" });
-    } catch (e: any) {
-        pushError.value = e?.message ?? String(e);
-    }
-}
-
-async function updateServiceWorker() {
-    pushError.value = "";
-    try {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (!reg) throw new Error("Kein Service Worker registriert");
-        await reg.update();
-        await refreshRegistrationInfo();
-        setInfo("SW update() ausgelöst");
-    } catch (e: any) {
-        pushError.value = e?.message ?? String(e);
-    }
-}
-
-async function unregisterServiceWorker() {
-    pushError.value = "";
-    try {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (!reg) throw new Error("Kein Service Worker registriert");
-        await reg.unregister();
-        setInfo("SW unregistered (Reload)");
-        await refreshRegistrationInfo();
-        refreshControllerInfo();
-    } catch (e: any) {
-        pushError.value = e?.message ?? String(e);
-    }
-}
-
-async function refreshPwaDebugStatus() {
-    pushError.value = "";
-
-    if (!("Notification" in window)) {
-        notifPermission.value = "unsupported";
-    } else {
-        notifPermission.value = Notification.permission;
-    }
-
-    if (!("serviceWorker" in navigator)) {
-        swStatus.value = "unsupported";
-        swScope.value = "—";
-        return;
-    }
-
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) {
-        swStatus.value = "no-sw";
-        swScope.value = "—";
-        return;
-    }
-
-    swScope.value = reg.scope || "—";
-    if (reg.installing) swStatus.value = "installing";
-    else swStatus.value = "ready";
-}
-
-async function requestNotificationPermission() {
-    pushError.value = "";
-
-    if (!("Notification" in window)) {
-        pushError.value = "Notification API nicht verfügbar";
-        return;
-    }
-
-    const res = await Notification.requestPermission();
-    notifPermission.value = res;
-}
-
-/**
- * OPTIONAL (aber empfehlenswert fürs Debuggen):
- * Wenn du Probleme hast, mach unsubscribe -> subscribe,
- * damit du wirklich mit neuen Parametern arbeitest.
- */
-const forceResubscribe = true;
-
-async function subscribePush() {
-    pushError.value = "";
-    pushSubscriptionJson.value = "";
-
-    try {
-        if (!pwaDebug.value)
-            throw new Error("Debug ist serverseitig nicht aktiv (kein Admin?)");
-        if (!("serviceWorker" in navigator))
-            throw new Error("Service Worker nicht verfügbar");
-        if (!("PushManager" in window))
-            throw new Error("PushManager nicht verfügbar");
-        if (!("Notification" in window))
-            throw new Error("Notification API nicht verfügbar");
-
-        const key = vapidPublicKey.value;
-        if (!key)
-            throw new Error("VAPID public key fehlt (Backend liefert null)");
-
-        const perm = await Notification.requestPermission();
-        notifPermission.value = perm;
-        if (perm !== "granted")
-            throw new Error(`Notification Permission ist ${perm}`);
-
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (!reg) throw new Error("Kein Service Worker registriert");
-
-        // optional: hart neu abonnieren
-        if (forceResubscribe) {
-            const existing = await reg.pushManager.getSubscription();
-            if (existing) {
-                try {
-                    await existing.unsubscribe();
-                } catch {
-                    // ignore
-                }
-            }
-        }
-
-        let sub = await reg.pushManager.getSubscription();
-        if (!sub) {
-            sub = await reg.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(key),
-            });
-        }
-
-        const json = sub.toJSON();
-        if (!json.keys?.p256dh || !json.keys?.auth) {
-            throw new Error("Subscription keys fehlen (p256dh/auth)");
-        }
-
-        await pushApi.subscribe({
-            endpoint: sub.endpoint,
-            keys: json.keys,
-            // ✅ iOS/Safari: sehr oft nötig
-            contentEncoding: "aes128gcm",
-            device: /iphone|ipad|ipod/i.test(navigator.userAgent)
-                ? "ios"
-                : /android/i.test(navigator.userAgent)
-                  ? "android"
-                  : "desktop",
-        });
-
-        pushSubscriptionJson.value = JSON.stringify(json, null, 2);
-
-        await refreshPwaDebugStatus();
-        await refreshRegistrationInfo();
-        refreshControllerInfo();
-        await requestSwStatus();
-        setInfo("Subscribed (aes128gcm) ✅");
-    } catch (e: any) {
-        pushError.value = e?.message ?? String(e);
-    }
-}
-
-async function sendTestPush() {
-    pushError.value = "";
-    pushInfo.value = "";
-
-    try {
-        if (!pwaDebug.value) {
-            setError("Debug ist serverseitig nicht aktiv (kein Admin?)");
-            return;
-        }
-        if (!pushTestEnabled.value) {
-            setError("push_test ist serverseitig nicht aktiviert");
-            return;
-        }
-
-        pushSending.value = true;
-        setInfo("Sende Test Push…");
-
-        const res = await pushApi.test({
-            title: "BLUELINER BERLIN",
-            body: "Test Push ✅",
-            url: "/profile",
-        });
-
-        const status = (res as any)?.status ?? (res as any)?.statusCode ?? "ok";
-        setInfo(`Test Push Request OK (${status})`);
-    } catch (e: any) {
-        const msg =
-            e?.response?.data?.message ??
-            e?.message ??
-            "Unbekannter Fehler beim Test Push";
-        setError(`Test Push failed: ${msg}`);
-    } finally {
-        pushSending.value = false;
-    }
-}
-
-async function refreshAllDebug() {
-    await refreshPwaDebugStatus();
-    refreshControllerInfo();
-    await refreshRegistrationInfo();
-    await requestSwStatus();
-}
-
 /* ======= Navigation / Actions ======= */
 function openStatsDetails() {
     showStatsDetails.value = true;
@@ -1326,17 +659,6 @@ onMounted(async () => {
     window.addEventListener("appinstalled", () => {
         detectInstalled();
     });
-
-    await loadAppConfig();
-    await refreshPwaDebugStatus();
-
-    // SW debug init
-    attachSwMessageListenerOnce();
-    refreshControllerInfo();
-    await refreshRegistrationInfo();
-
-    // sofort Status anfordern (wenn SW antwortet)
-    await requestSwStatus();
 
     // load stats
     try {

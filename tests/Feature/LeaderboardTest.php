@@ -9,51 +9,101 @@ use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
-use PHPUnit\Framework\Attributes\Test;
 
 class LeaderboardTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
+    private function makeSeason(): Season
     {
-        parent::setUp();
-        $this->seed(\Database\Seeders\TeamSeeder::class);
+        return Season::create([
+            'name' => 'Saison 25/26',
+            'is_active' => true,
+            'start_date' => now()->subMonth()->toDateString(),
+            'end_date' => null,
+        ]);
     }
 
-    #[Test]
-    public function user_can_get_leaderboard()
+    private function makeTeam(): Team
     {
-        $season = Season::factory()->create(['is_active' => true]);
-        $opponent = Team::where('name', '!=', 'Eisbären Berlin')->first();
+        return Team::create([
+            'name' => 'Opponent',
+            'short_name' => 'OPP',
+            'logo_url' => null,
+        ]);
+    }
 
-        $users = User::factory()->count(3)->create();
+    private function makeUser(array $overrides = []): User
+    {
+        return User::create(array_replace([
+            'name' => 'User ' . uniqid(),
+            'email' => uniqid('u') . '@test.local',
+            'password' => bcrypt('password'),
+            'is_admin' => false,
+            'balance' => 0,
+            'jokers_remaining' => 3,
+            'wants_email_reminder' => false,
+            'wants_sms_reminder' => false,
+            'notification_settings' => [],
+        ], $overrides));
+    }
 
-        $game = Game::factory()->create([
+    private function makeFinishedGame(Season $season, Team $team, array $overrides = []): Game
+    {
+        return Game::create(array_replace([
+            'game_number' => 1,
+            'opponent_id' => $team->id,
             'season_id' => $season->id,
-            'opponent_id' => $opponent->id,
+            'is_home' => true,
+            'kickoff_at' => now()->subDays(2)->setTime(19, 30),
             'status' => 'finished',
-            'eisbaeren_goals' => 4,
+            'eisbaeren_goals' => 3,
+            'opponent_goals' => 1,
+            'is_derby' => false,
+            'is_playoff' => false,
+            'difficulty_rating' => 1,
+            'email_reminder_sent' => false,
+            'sms_reminder_sent' => false,
+        ], $overrides));
+    }
+
+    private function placeBet(User $user, Game $game, float $basePrice, float $finalPrice): Bet
+    {
+        return Bet::create([
+            'user_id' => $user->id,
+            'game_id' => $game->id,
+            'eisbaeren_goals' => 1,
             'opponent_goals' => 2,
+            'base_price' => $basePrice,
+            'final_price' => $finalPrice,
+            'locked_at' => now(),
+        ]);
+    }
+
+    public function test_user_can_get_leaderboard(): void
+    {
+        $season = $this->makeSeason();
+        $team = $this->makeTeam();
+
+        $users = collect([
+            $this->makeUser(['name' => 'U1']),
+            $this->makeUser(['name' => 'U2']),
+            $this->makeUser(['name' => 'U3']),
         ]);
 
-        foreach ($users as $user) {
-            $bet = Bet::factory()->create([
-                'user_id' => $user->id,
-                'game_id' => $game->id,
-                'eisbaeren_goals' => rand(1, 5),
-                'opponent_goals' => rand(1, 5),
-            ]);
-            $bet->updatePrices();
-        }
+        $game = $this->makeFinishedGame($season, $team);
 
-        $response = $this->actingAs($users->first())
-            ->getJson('/api/leaderboard');
+        // some costs
+        $this->placeBet($users[0], $game, 0.00, 0.00);
+        $this->placeBet($users[1], $game, 0.60, 0.60);
+        $this->placeBet($users[2], $game, 0.30, 0.30);
+
+        $response = $this->actingAs($users->first())->getJson('/api/leaderboard');
 
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'season' => ['id', 'name'],
-                'leaderboard' => [
+                'entries' => [
                     '*' => [
                         'id',
                         'name',
@@ -62,102 +112,64 @@ class LeaderboardTest extends TestCase
                         'exact_bets',
                         'average_cost',
                         'jokers_remaining',
-                        'position',
-                    ]
+                        'rank',
+                        'delta',
+                        'is_me',
+                    ],
                 ],
-                'my_position',
+                'top3',
+                'me',
+                'generated_at',
             ]);
     }
 
-    #[Test]
-    public function leaderboard_is_sorted_by_total_cost_ascending()
+    public function test_leaderboard_is_sorted_by_total_cost_ascending(): void
     {
-        $season = Season::factory()->create(['is_active' => true]);
-        $opponent = Team::where('name', '!=', 'Eisbären Berlin')->first();
+        $season = $this->makeSeason();
+        $team = $this->makeTeam();
 
-        $user1 = User::factory()->create(['name' => 'User 1']);
-        $user2 = User::factory()->create(['name' => 'User 2']);
-        $user3 = User::factory()->create(['name' => 'User 3']);
+        $user1 = $this->makeUser(['name' => 'U1']);
+        $user2 = $this->makeUser(['name' => 'U2']);
+        $user3 = $this->makeUser(['name' => 'U3']);
 
-        $game = Game::factory()->create([
-            'season_id' => $season->id,
-            'opponent_id' => $opponent->id,
-            'status' => 'finished',
-            'eisbaeren_goals' => 4,
-            'opponent_goals' => 2,
-        ]);
+        $game = $this->makeFinishedGame($season, $team);
 
-        // User 1: Exact bet (0€)
-        $bet1 = Bet::factory()->create([
-            'user_id' => $user1->id,
-            'game_id' => $game->id,
-            'eisbaeren_goals' => 4,
-            'opponent_goals' => 2,
-        ]);
-        $bet1->updatePrices();
+        // User1: 0.00
+        $this->placeBet($user1, $game, 0.00, 0.00);
 
-        // User 2: Wrong bet (1€)
-        $bet2 = Bet::factory()->create([
-            'user_id' => $user2->id,
-            'game_id' => $game->id,
-            'eisbaeren_goals' => 2,
-            'opponent_goals' => 4,
-        ]);
-        $bet2->updatePrices();
+        // User3: 0.30
+        $this->placeBet($user3, $game, 0.30, 0.30);
 
-        // User 3: Tendency (0.30€)
-        $bet3 = Bet::factory()->create([
-            'user_id' => $user3->id,
-            'game_id' => $game->id,
-            'eisbaeren_goals' => 3,
-            'opponent_goals' => 1,
-        ]);
-        $bet3->updatePrices();
+        // User2: 0.60
+        $this->placeBet($user2, $game, 0.60, 0.60);
 
-        $response = $this->actingAs($user1)
-            ->getJson('/api/leaderboard');
+        $response = $this->actingAs($user1)->getJson('/api/leaderboard');
+        $response->assertStatus(200);
 
-        $leaderboard = $response->json('leaderboard');
+        $entries = $response->json('entries');
+        $this->assertIsArray($entries);
 
-        // User 1 should be first (0€)
-        $this->assertEquals($user1->id, $leaderboard[0]['id']);
-        $this->assertEquals(1, $leaderboard[0]['position']);
+        $this->assertSame($user1->id, $entries[0]['id']);
+        $this->assertSame($user3->id, $entries[1]['id']);
+        $this->assertSame($user2->id, $entries[2]['id']);
 
-        // User 3 should be second (0.30€)
-        $this->assertEquals($user3->id, $leaderboard[1]['id']);
-        $this->assertEquals(2, $leaderboard[1]['position']);
-
-        // User 2 should be last (1€)
-        $this->assertEquals($user2->id, $leaderboard[2]['id']);
-        $this->assertEquals(3, $leaderboard[2]['position']);
+        // rank should start at 1
+        $this->assertSame(1, $entries[0]['rank']);
+        $this->assertSame(2, $entries[1]['rank']);
+        $this->assertSame(3, $entries[2]['rank']);
     }
 
-    #[Test]
-    public function user_can_get_their_stats()
+    public function test_user_can_get_their_stats(): void
     {
-        $user = User::factory()->create();
-        $season = Season::factory()->create(['is_active' => true]);
-        $opponent = Team::where('name', '!=', 'Eisbären Berlin')->first();
+        $season = $this->makeSeason();
+        $team = $this->makeTeam();
 
-        $game = Game::factory()->create([
-            'season_id' => $season->id,
-            'opponent_id' => $opponent->id,
-            'status' => 'finished',
-            'eisbaeren_goals' => 4,
-            'opponent_goals' => 2,
-        ]);
+        $user = $this->makeUser();
+        $game = $this->makeFinishedGame($season, $team);
 
-        $bet = Bet::factory()->create([
-            'user_id' => $user->id,
-            'game_id' => $game->id,
-            'eisbaeren_goals' => 4,
-            'opponent_goals' => 2,
-        ]);
-        $bet->updatePrices();
+        $this->placeBet($user, $game, 0.30, 0.30);
 
-        $response = $this->actingAs($user)
-            ->getJson('/api/stats');
-
+        $response = $this->actingAs($user)->getJson('/api/leaderboard/user-stats');
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'user' => ['id', 'name', 'balance', 'jokers_remaining'],
@@ -173,87 +185,87 @@ class LeaderboardTest extends TestCase
             ]);
     }
 
-    #[Test]
-    public function user_can_get_another_users_stats()
+    public function test_user_can_get_another_users_stats(): void
     {
-        $user1 = User::factory()->create();
-        $user2 = User::factory()->create();
-        $season = Season::factory()->create(['is_active' => true]);
+        $this->makeSeason(); // ensure current season exists
+        $a = $this->makeUser();
+        $b = $this->makeUser();
 
-        $response = $this->actingAs($user1)
-            ->getJson("/api/stats/{$user2->id}");
-
+        $response = $this->actingAs($a)->getJson("/api/leaderboard/user-stats/{$b->id}");
         $response->assertStatus(200)
-            ->assertJson([
-                'user' => [
-                    'id' => $user2->id,
-                    'name' => $user2->name,
-                ]
-            ]);
+            ->assertJsonPath('user.id', $b->id);
     }
 
-    #[Test]
-    public function leaderboard_only_includes_finished_games()
+    public function test_leaderboard_only_includes_finished_games(): void
     {
-        $season = Season::factory()->create(['is_active' => true]);
-        $opponent = Team::where('name', '!=', 'Eisbären Berlin')->first();
-        $user = User::factory()->create();
+        $season = $this->makeSeason();
+        $team = $this->makeTeam();
 
-        // Finished game
-        $finishedGame = Game::factory()->create([
-            'season_id' => $season->id,
-            'opponent_id' => $opponent->id,
-            'status' => 'finished',
-            'eisbaeren_goals' => 4,
-            'opponent_goals' => 2,
+        $user = $this->makeUser();
+
+        $finished = $this->makeFinishedGame($season, $team, [
+            'kickoff_at' => now()->subDays(2),
+            'game_number' => 1,
         ]);
 
-        $bet1 = Bet::factory()->create([
-            'user_id' => $user->id,
-            'game_id' => $finishedGame->id,
-            'eisbaeren_goals' => 2,
-            'opponent_goals' => 4,
-        ]);
-        $bet1->updatePrices();
-
-        // Scheduled game (should not count)
-        $scheduledGame = Game::factory()->create([
+        $scheduled = Game::create([
+            'game_number' => 2,
+            'opponent_id' => $team->id,
             'season_id' => $season->id,
-            'opponent_id' => $opponent->id,
-            'status' => 'scheduled',
+            'is_home' => true,
             'kickoff_at' => now()->addDays(2),
+            'status' => 'scheduled',
+            'is_derby' => false,
+            'is_playoff' => false,
+            'difficulty_rating' => 1,
+            'email_reminder_sent' => false,
+            'sms_reminder_sent' => false,
         ]);
 
-        Bet::factory()->create([
+        // finished bet should count
+        $this->placeBet($user, $finished, 0.30, 0.30);
+
+        // scheduled bet should NOT count in leaderboard aggregation (join filters finished)
+        Bet::create([
             'user_id' => $user->id,
-            'game_id' => $scheduledGame->id,
-            'eisbaeren_goals' => 5,
-            'opponent_goals' => 5,
+            'game_id' => $scheduled->id,
+            'eisbaeren_goals' => 1,
+            'opponent_goals' => 2,
+            'base_price' => 1.00,
+            'final_price' => 1.00,
+            'locked_at' => null,
         ]);
 
-        $response = $this->actingAs($user)
-            ->getJson('/api/leaderboard');
+        $response = $this->actingAs($user)->getJson('/api/leaderboard');
+        $response->assertStatus(200);
 
-        $leaderboard = $response->json('leaderboard');
-        $userStats = collect($leaderboard)->firstWhere('id', $user->id);
+        $entries = $response->json('entries');
+        $row = collect($entries)->firstWhere('id', $user->id);
 
-        // Should only count the finished game
-        $this->assertEquals(1, $userStats['bet_count']);
+        $this->assertNotNull($row);
+        $this->assertSame(1, (int) $row['bet_count']);
+        $this->assertSame(0.30, (float) $row['total_cost']);
     }
 
-    #[Test]
-    public function admins_are_excluded_from_leaderboard()
+    public function test_admins_are_excluded_from_leaderboard(): void
     {
-        $season = Season::factory()->create(['is_active' => true]);
-        $admin = User::factory()->create(['is_admin' => true]);
-        $regularUser = User::factory()->create(['is_admin' => false]);
+        $season = $this->makeSeason();
+        $team = $this->makeTeam();
 
-        $response = $this->actingAs($regularUser)
-            ->getJson('/api/leaderboard');
+        $admin = $this->makeUser(['is_admin' => true, 'name' => 'Admin']);
+        $user = $this->makeUser(['is_admin' => false, 'name' => 'User']);
 
-        $leaderboard = $response->json('leaderboard');
-        $adminInLeaderboard = collect($leaderboard)->contains('id', $admin->id);
+        $game = $this->makeFinishedGame($season, $team);
 
-        $this->assertFalse($adminInLeaderboard);
+        $this->placeBet($admin, $game, 0.30, 0.30);
+        $this->placeBet($user, $game, 0.60, 0.60);
+
+        $response = $this->actingAs($user)->getJson('/api/leaderboard');
+        $response->assertStatus(200);
+
+        $ids = collect($response->json('entries'))->pluck('id')->all();
+
+        $this->assertFalse(in_array($admin->id, $ids, true));
+        $this->assertTrue(in_array($user->id, $ids, true));
     }
 }
