@@ -228,6 +228,29 @@ export const authApi = {
     getMe: () => api.get<MeResponse>("/me"),
 };
 
+/* =========================
+ * Admin API
+ * ======================= */
+export type AdminReviewCountResponse = {
+    count: number;
+};
+
+export type AdminSyncPayload = {
+    season_id: number;
+};
+
+export type AdminSyncResponse = {
+    output?: string;
+};
+
+export const adminApi = {
+    getGamesReviewCount: () =>
+        api.get<AdminReviewCountResponse>("/admin/games/review/count"),
+
+    syncGames: (data: AdminSyncPayload) =>
+        api.post<AdminSyncResponse>("/admin/games/sync", data),
+};
+
 export const seasonsApi = {
     getAll: () => api.get<{ data: Season[] }>("/seasons"),
 };

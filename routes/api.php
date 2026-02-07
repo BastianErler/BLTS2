@@ -9,40 +9,94 @@ use App\Http\Controllers\Api\LeaderboardController;
 use App\Http\Controllers\Api\NotificationSettingsController;
 use App\Http\Controllers\Api\SeasonController;
 
+use App\Http\Controllers\Api\Admin\GameReviewController;
+use App\Http\Controllers\Api\Admin\GameSyncController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
+
 Route::middleware('api')->group(function () {
 
-    // ---------- Public / Auth ----------
-    Route::post('/login', [AuthController::class, 'login']);
+    /*
+    |--------------------------------------------------------------------------
+    | Public
+    |--------------------------------------------------------------------------
+    */
+    Route::controller(AuthController::class)->group(function () {
+        Route::post('/login', 'login');
+    });
 
-    // ---------- Protected ----------
+    /*
+    |--------------------------------------------------------------------------
+    | Authenticated
+    |--------------------------------------------------------------------------
+    */
     Route::middleware('auth:sanctum')->group(function () {
 
-        // Auth
-        Route::post('/logout', [AuthController::class, 'logout']);
-        Route::get('/me', [AuthController::class, 'me']);
+        // Auth / User
+        Route::controller(AuthController::class)->group(function () {
+            Route::post('/logout', 'logout');
+            Route::get('/me', 'me');
+        });
 
         // Seasons
-        Route::get('/seasons', [SeasonController::class, 'index']);
+        Route::controller(SeasonController::class)->group(function () {
+            Route::get('/seasons', 'index');
+        });
 
         // Notification settings
-        Route::get('/notification-settings', [NotificationSettingsController::class, 'show']);
-        Route::patch('/notification-settings', [NotificationSettingsController::class, 'update']);
+        Route::controller(NotificationSettingsController::class)->group(function () {
+            Route::get('/notification-settings', 'show');
+            Route::patch('/notification-settings', 'update');
+        });
 
         // Games
-        Route::get('/games', [GameController::class, 'index']);
-        Route::get('/games/upcoming', [GameController::class, 'upcoming']);
-        Route::get('/games/{game}', [GameController::class, 'show']);
-        Route::get('/games/{game}/user-bet', [GameController::class, 'userBet']);
+        Route::controller(GameController::class)->group(function () {
+            Route::get('/games', 'index');
+            Route::get('/games/upcoming', 'upcoming');
+            Route::get('/games/{game}', 'show');
+            Route::get('/games/{game}/user-bet', 'userBet');
+        });
 
         // Bets
-        Route::get('/bets', [BetController::class, 'index']);
-        Route::post('/bets', [BetController::class, 'store']);
-        Route::put('/bets/{bet}', [BetController::class, 'update']);
-        Route::delete('/bets/{bet}', [BetController::class, 'destroy']);
+        Route::controller(BetController::class)->group(function () {
+            Route::get('/bets', 'index');
+            Route::post('/bets', 'store');
+            Route::put('/bets/{bet}', 'update');
+            Route::delete('/bets/{bet}', 'destroy');
+        });
 
         // Leaderboard
-        Route::get('/leaderboard', [LeaderboardController::class, 'index']);
-        Route::get('/leaderboard/user-stats', [LeaderboardController::class, 'userStats']);
-        Route::get('/leaderboard/user-stats/{user}', [LeaderboardController::class, 'userStats']);
+        Route::controller(LeaderboardController::class)->group(function () {
+            Route::get('/leaderboard', 'index');
+            Route::get('/leaderboard/user-stats', 'userStats');
+            Route::get('/leaderboard/user-stats/{user}', 'userStats');
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Admin (is_admin === true)
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('admin')
+            ->middleware('admin')
+            ->group(function () {
+
+                // Review games flagged as needs_review
+                Route::controller(GameReviewController::class)->group(function () {
+                    Route::get('/games/review', 'index');
+                    Route::get('/games/review/count', 'count');
+                    Route::patch('/games/{game}/review', 'update');
+                });
+
+                // Sync (import/resync)
+                Route::controller(GameSyncController::class)->group(function () {
+                    Route::get('/games/sync/status', 'status');
+                    Route::post('/games/sync', 'sync');
+                });
+            });
     });
 });

@@ -9,6 +9,11 @@
                     <div class="text-sm font-semibold text-white">Konto</div>
                     <div class="text-xs text-white/60">
                         Einzahlungen, offene Beiträge & Stand
+                        <div class="text-xs text-white/60">
+                            DEBUG isAdmin={{ isAdmin }} · stored={{
+                                storedIsAdmin
+                            }}
+                        </div>
                     </div>
                 </div>
 
@@ -177,6 +182,123 @@
                 >
                     Statistik-Details
                 </button>
+            </div>
+        </section>
+
+        <!-- =================== ADMIN (nur Admins) =================== -->
+        <section
+            v-if="isAdmin"
+            class="rounded-[28px] border border-white/10 bg-navy-800/70 p-4 backdrop-blur-md"
+        >
+            <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold text-white">Admin</div>
+                    <div class="text-xs text-white/60">
+                        Spiele prüfen & Sync (Import/Verlegungen)
+                    </div>
+                </div>
+
+                <span
+                    class="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80"
+                >
+                    <template v-if="adminReviewLoading">…</template>
+                    <template v-else>
+                        {{ adminReviewCount }}
+                        {{ adminReviewCount === 1 ? "Fall" : "Fälle" }}
+                    </template>
+                </span>
+            </div>
+
+            <div class="my-4 h-px bg-white/10"></div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="text-xs text-white/60">Prüfbedarf</div>
+                    <div class="mt-1 flex items-baseline gap-2">
+                        <div class="text-lg font-semibold text-white">
+                            {{ adminReviewCount }}
+                        </div>
+                        <div class="text-xs text-white/60">needs_review</div>
+                    </div>
+                    <div class="mt-1 text-xs text-white/50">
+                        Spiele, die manuell geprüft werden sollten
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="text-xs text-white/60">Status</div>
+                    <div class="mt-1 text-lg font-semibold text-white">
+                        {{
+                            adminSyncing
+                                ? "Sync läuft…"
+                                : adminLastSyncLabel || "—"
+                        }}
+                    </div>
+                    <div class="mt-1 text-xs text-white/50">
+                        letzter Sync (lokal)
+                    </div>
+                </div>
+
+                <div class="col-span-2 mt-1 flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        class="btn-primary"
+                        @click="goToAdminReview"
+                    >
+                        Spiele prüfen
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn-secondary"
+                        :disabled="adminSyncing"
+                        @click="adminSyncGames"
+                    >
+                        {{ adminSyncing ? "Sync…" : "Sync jetzt" }}
+                    </button>
+
+                    <button
+                        v-if="adminReviewCount > 0"
+                        type="button"
+                        class="btn-secondary"
+                        @click="adminRefreshCount"
+                    >
+                        Aktualisieren
+                    </button>
+                </div>
+
+                <div v-if="adminSyncOutput" class="col-span-2">
+                    <div
+                        class="rounded-2xl border border-white/10 bg-white/5 p-4"
+                    >
+                        <div class="text-xs font-semibold text-white/80">
+                            Sync Output
+                        </div>
+                        <div
+                            class="mt-2 text-xs text-white/70 whitespace-pre-wrap break-words"
+                        >
+                            {{ adminSyncOutput }}
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="adminError" class="col-span-2">
+                    <div
+                        class="rounded-2xl border border-rose-300/30 bg-rose-400/10 p-4"
+                    >
+                        <div class="text-xs font-semibold text-rose-200">
+                            Fehler
+                        </div>
+                        <div class="mt-2 text-xs text-rose-100/90 break-words">
+                            {{ adminError }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-2 text-xs text-white/50">
+                Admin-Bereich ist nur sichtbar, wenn dein Account
+                <b>is_admin</b> ist.
             </div>
         </section>
 
@@ -501,7 +623,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { authApi, leaderboardApi, type UserStats } from "@/services/api";
+import {
+    authApi,
+    adminApi,
+    leaderboardApi,
+    type UserStats,
+} from "@/services/api";
 import { usePwaInstall } from "@/pwa/usePwaInstall";
 
 const { canInstall, init, triggerInstall } = usePwaInstall();
@@ -529,6 +656,100 @@ const stats = ref({
 });
 
 const showStatsDetails = ref(false);
+
+/* ======= Admin Section ======= */
+const isAdmin = ref(false);
+const storedIsAdmin = ref("0");
+const adminReviewCount = ref(0);
+const adminReviewLoading = ref(false);
+const adminSyncing = ref(false);
+const adminSyncOutput = ref<string | null>(null);
+const adminError = ref<string | null>(null);
+const adminLastSyncIso = ref<string | null>(
+    localStorage.getItem("admin_last_sync_iso"),
+);
+
+const adminLastSyncLabel = computed(() => {
+    if (!adminLastSyncIso.value) return "";
+    const d = new Date(adminLastSyncIso.value);
+    if (Number.isNaN(d.getTime())) return "";
+    const date = d.toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+    });
+    const time = d.toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+    return `${date} ${time}`;
+});
+
+/**
+ * Robust: unterstützt {user:{...}} oder direkt {...}
+ * Optional, falls localStorage mal out-of-sync ist.
+ */
+async function loadMeForAdminFlag() {
+    try {
+        const res = await authApi.getMe();
+        const data = (res as any)?.data;
+        const u = data?.user ?? data;
+
+        isAdmin.value = Boolean(u?.is_admin);
+        localStorage.setItem("is_admin", isAdmin.value ? "1" : "0");
+        storedIsAdmin.value = localStorage.getItem("is_admin") ?? "0";
+    } catch {
+        // fallback: local storage only
+        isAdmin.value = localStorage.getItem("is_admin") === "1";
+        storedIsAdmin.value = localStorage.getItem("is_admin") ?? "0";
+    }
+}
+
+async function adminRefreshCount() {
+    if (!isAdmin.value) return;
+
+    adminReviewLoading.value = true;
+    adminError.value = null;
+
+    try {
+        const res = await adminApi.getGamesReviewCount();
+        adminReviewCount.value = Number((res as any)?.data?.count ?? 0);
+    } catch (e: any) {
+        adminError.value = e?.message || "Admin Count Fehler";
+    } finally {
+        adminReviewLoading.value = false;
+    }
+}
+
+function goToAdminReview() {
+    router.push({ name: "admin-games-review" });
+}
+
+async function adminSyncGames() {
+    if (!isAdmin.value) return;
+
+    adminSyncing.value = true;
+    adminSyncOutput.value = null;
+    adminError.value = null;
+
+    try {
+        const res = await adminApi.syncGames({ season_id: 1 });
+
+        const json = (res as any)?.data ?? {};
+        adminSyncOutput.value =
+            String(json?.output ?? "").trim() || "Sync done.";
+
+        const nowIso = new Date().toISOString();
+        adminLastSyncIso.value = nowIso;
+        localStorage.setItem("admin_last_sync_iso", nowIso);
+
+        await adminRefreshCount();
+    } catch (e: any) {
+        adminError.value = e?.message || "Admin Sync Fehler";
+    } finally {
+        adminSyncing.value = false;
+    }
+}
 
 /* ======= PWA INSTALL HELP ======= */
 const showInstallHelp = ref(false);
@@ -611,6 +832,7 @@ async function logout() {
         await authApi.logout();
     } finally {
         localStorage.removeItem("auth_token");
+        localStorage.removeItem("is_admin");
         if (window.location.pathname !== "/login") {
             window.location.href = "/login";
         }
@@ -660,6 +882,16 @@ onMounted(async () => {
         detectInstalled();
     });
 
+    // Admin status: bevorzugt localStorage (App.vue setzt es), optional via /me refresh
+    isAdmin.value = localStorage.getItem("is_admin") === "1";
+    storedIsAdmin.value = localStorage.getItem("is_admin") ?? "0";
+
+    await loadMeForAdminFlag();
+
+    if (isAdmin.value) {
+        await adminRefreshCount();
+    }
+
     // load stats
     try {
         const res = await leaderboardApi.getUserStats();
@@ -704,7 +936,7 @@ onMounted(async () => {
     filter: brightness(1.08);
 }
 
-/* disabled state (also for "loading") */
+/* disabled state */
 .btn-primary[disabled],
 .btn-secondary[disabled],
 .btn-danger[disabled] {
@@ -714,12 +946,12 @@ onMounted(async () => {
     filter: none;
 }
 
-/* focus visible for keyboard (desktop) */
+/* focus visible */
 .btn-primary:focus-visible,
 .btn-secondary:focus-visible,
 .btn-danger:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.35);
     outline-offset: 2px;
-    border-radius: 9999px; /* falls pill buttons */
+    border-radius: 9999px;
 }
 </style>

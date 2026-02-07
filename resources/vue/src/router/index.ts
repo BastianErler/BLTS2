@@ -4,13 +4,14 @@ import {
     type RouteRecordRaw,
 } from "vue-router";
 
-import HomeView from "../views/HomeView.vue";
-import GameView from "../views/GameView.vue";
-import BetsView from "../views/BetsView.vue";
-import LeaderboardView from "../views/LeaderboardView.vue";
-import ProfileView from "../views/ProfileView.vue";
-import NotificationSettingsView from "../views/NotificationSettingsView.vue";
-import LoginView from "../views/Login.vue";
+import HomeView from "@/views/HomeView.vue";
+import GameView from "@/views/GameView.vue";
+import BetsView from "@/views/BetsView.vue";
+import LeaderboardView from "@/views/LeaderboardView.vue";
+import ProfileView from "@/views/ProfileView.vue";
+import NotificationSettingsView from "@/views/NotificationSettingsView.vue";
+import AdminGamesReview from "@/views/AdminGamesReview.vue";
+import LoginView from "@/views/Login.vue";
 
 const routes: RouteRecordRaw[] = [
     {
@@ -70,6 +71,12 @@ const routes: RouteRecordRaw[] = [
             pageSubtitle: "Erinnerungen & Ergebnis-Infos verwalten",
         },
     },
+    {
+        path: "/admin/games/review",
+        name: "admin-games-review",
+        component: AdminGamesReview,
+        meta: { pageTitle: "Spiele prüfen", admin: true },
+    },
 ];
 
 const router = createRouter({ history: createWebHistory(), routes });
@@ -77,10 +84,16 @@ const router = createRouter({ history: createWebHistory(), routes });
 router.beforeEach((to) => {
     const token = localStorage.getItem("auth_token");
 
-    // nur login ist öffentlich
     if (!token && to.name !== "login") {
         return { name: "login" };
     }
+
+    if (to.meta?.admin) {
+        const isAdmin = localStorage.getItem("is_admin") === "1";
+        if (!isAdmin) return { name: "home" };
+    }
+
+    return true;
 });
 
 export default router;
