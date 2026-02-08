@@ -43,9 +43,11 @@
                 :key="g.id"
                 :game="g"
                 :user-bet="g.user_bet ?? null"
+                :is-admin="isAdmin"
                 :clickable="true"
                 @click="openGame(g)"
                 @bet="openBet(g)"
+                @admin-edit="goToGameEdit"
             />
         </div>
 
@@ -65,13 +67,34 @@ import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import GameCard from "@/components/GameCard.vue";
 import BetModal from "@/components/BetModal.vue";
-import { gamesApi, type Bet, type Game } from "@/services/api";
+import { gamesApi, authApi, type Bet, type Game } from "@/services/api";
 
 const router = useRouter();
 
 const loading = ref(true);
 const error = ref<string | null>(null);
 const games = ref<Game[]>([]);
+
+/* ================= ADMIN FLAG (wie ProfileView) ================= */
+const isAdmin = ref(false);
+
+/**
+ * Robust: unterstützt {user:{...}} oder direkt {...}
+ * Optional, falls localStorage mal out-of-sync ist.
+ */
+async function loadMeForAdminFlag() {
+    try {
+        const res = await authApi.getMe();
+        const data = (res as any)?.data;
+        const u = data?.user ?? data;
+
+        isAdmin.value = Boolean(u?.is_admin);
+        localStorage.setItem("is_admin", isAdmin.value ? "1" : "0");
+    } catch {
+        // fallback: local storage only
+        isAdmin.value = localStorage.getItem("is_admin") === "1";
+    }
+}
 
 // Modal state
 const betModalOpen = ref(false);
@@ -133,7 +156,22 @@ const onBetSaved = (payload: { gameId: number; bet: Bet }) => {
     }
 };
 
-onMounted(load);
+function goToGameEdit(game: Game) {
+    // Route-Name muss in deinem router existieren:
+    // z.B. /admin/games/:id/edit
+    router.push({
+        name: "admin-games-edit",
+        params: { id: game.id },
+    });
+}
+
+onMounted(async () => {
+    // bevorzugt localStorage (App.vue setzt es), optional via /me refresh
+    isAdmin.value = localStorage.getItem("is_admin") === "1";
+    await loadMeForAdminFlag();
+
+    await load();
+});
 </script>
 
 <style scoped>

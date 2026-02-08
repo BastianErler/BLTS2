@@ -63,18 +63,21 @@ export interface Team {
 
 export interface Game {
     id: number;
-    match_number: number;
+    match_number: number | null;
     opponent: Team;
     is_home: boolean;
-    kickoff_at: string;
+    kickoff_at: string | null;
     eisbaeren_goals: number | null;
     opponent_goals: number | null;
     status: "scheduled" | "live" | "finished";
     is_derby: boolean;
     is_playoff: boolean;
     can_bet: boolean;
-    bet_deadline_at: string;
+    bet_deadline_at: string | null;
     winner?: "eisbaeren" | "opponent" | "draw" | null;
+
+    // comes from GameResource when include_user_bet=true
+    user_bet?: Bet | null;
 }
 
 export interface Bet {
@@ -87,7 +90,7 @@ export interface Bet {
     multiplier: number;
     final_price: number;
     locked_at: string | null;
-    game: Game;
+    game?: Game;
 }
 
 export interface UserStats {
@@ -180,6 +183,23 @@ export const gamesApi = {
     getOne: (id: number) => api.get<{ data: Game }>(`/games/${id}`),
 
     getUserBet: (gameId: number) => api.get(`/games/${gameId}/user-bet`),
+
+    /**
+     * Admin-only update for game edit screen
+     * EXPECTED backend route: PATCH /admin/games/{game}
+     */
+    updateAdmin: (
+        id: number,
+        data: Partial<{
+            status: "scheduled" | "live" | "finished";
+            kickoff_at: string | null;
+            is_home: boolean;
+            is_playoff: boolean;
+            is_derby: boolean;
+            eisbaeren_goals: number | null;
+            opponent_goals: number | null;
+        }>,
+    ) => api.patch<{ data: Game }>(`/admin/games/${id}`, data),
 };
 
 // Bets API

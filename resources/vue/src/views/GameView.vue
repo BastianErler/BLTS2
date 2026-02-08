@@ -40,9 +40,18 @@
                     :key="game.id"
                     :game="game"
                     :user-bet="game.user_bet ?? null"
+                    :is-admin="isAdmin"
                     clickable
                     @bet="openBet(game)"
+                    @admin-edit="goToGameEdit"
                 />
+
+                <p
+                    v-if="upcomingGames.length === 0"
+                    class="text-center text-sm text-navy-300 pt-8"
+                >
+                    Aktuell keine kommenden Spiele
+                </p>
             </template>
 
             <!-- Live Spiele -->
@@ -51,6 +60,8 @@
                     v-for="game in liveGames"
                     :key="game.id"
                     :game="game"
+                    :is-admin="isAdmin"
+                    @admin-edit="goToGameEdit"
                 />
                 <p
                     v-if="liveGames.length === 0"
@@ -67,7 +78,16 @@
                     :key="game.id"
                     :game="game"
                     :user-bet="game.user_bet ?? null"
+                    :is-admin="isAdmin"
+                    @admin-edit="goToGameEdit"
                 />
+
+                <p
+                    v-if="pastGames.length === 0"
+                    class="text-center text-sm text-navy-300 pt-8"
+                >
+                    Aktuell keine vergangenen Spiele
+                </p>
             </template>
         </div>
 
@@ -84,13 +104,17 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+
 import GameCard from "@/components/GameCard.vue";
 import BetModal from "@/components/BetModal.vue";
 
-import { gamesApi, type Game, type Bet } from "@/services/api";
+import { gamesApi, authApi, type Game, type Bet } from "@/services/api";
+
+/* ================= ROUTER ================= */
+const router = useRouter();
 
 /* ================= TABS ================= */
-
 type TabKey = "upcoming" | "live" | "past";
 
 const activeTab = ref<TabKey>("upcoming");
@@ -101,15 +125,29 @@ const tabs = [
     { key: "past", label: "Vergangen" },
 ];
 
-/* ================= DATA ================= */
+/* ================= ADMIN FLAG (wie ProfileView) ================= */
+const isAdmin = ref(false);
 
+async function loadMeForAdminFlag() {
+    try {
+        const res = await authApi.getMe();
+        const data = (res as any)?.data;
+        const u = data?.user ?? data;
+
+        isAdmin.value = Boolean(u?.is_admin);
+        localStorage.setItem("is_admin", isAdmin.value ? "1" : "0");
+    } catch {
+        isAdmin.value = localStorage.getItem("is_admin") === "1";
+    }
+}
+
+/* ================= DATA ================= */
 const loading = ref(true);
 const error = ref<string | null>(null);
 
 const games = ref<Game[]>([]);
 
 /* ================= FETCH ================= */
-
 const load = async () => {
     loading.value = true;
     error.value = null;
@@ -128,10 +166,15 @@ const load = async () => {
     }
 };
 
-onMounted(load);
+onMounted(async () => {
+    // wie bei dir: erst localStorage, dann /me refresh
+    isAdmin.value = localStorage.getItem("is_admin") === "1";
+    await loadMeForAdminFlag();
+
+    await load();
+});
 
 /* ================= COMPUTED ================= */
-
 const upcomingGames = computed(() =>
     games.value.filter((g) => g.status === "scheduled"),
 );
@@ -144,8 +187,17 @@ const pastGames = computed(() =>
     games.value.filter((g) => g.status === "finished"),
 );
 
-/* ================= MODAL ================= */
+/* ================= ADMIN EDIT NAV ================= */
+function goToGameEdit(game: Game) {
+    // Route-Name bitte an deine echte Route anpassen
+    // Empfehlung: /admin/games/:id/edit
+    router.push({
+        name: "admin-games-edit",
+        params: { id: game.id },
+    });
+}
 
+/* ================= MODAL ================= */
 const betModalOpen = ref(false);
 const selectedGame = ref<Game | null>(null);
 const selectedExistingBet = ref<Bet | null>(null);

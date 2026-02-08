@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\SeasonController;
 
 use App\Http\Controllers\Api\Admin\GameReviewController;
 use App\Http\Controllers\Api\Admin\GameSyncController;
+use App\Http\Controllers\Api\Admin\GameAdminController;
 
 /*
 |--------------------------------------------------------------------------
@@ -96,6 +97,11 @@ Route::middleware('api')->group(function () {
                 Route::controller(GameSyncController::class)->group(function () {
                     Route::get('/games/sync/status', 'status');
                     Route::post('/games/sync', 'sync');
+                });
+
+                // Admin Game Edit
+                Route::controller(GameAdminController::class)->group(function () {
+                    Route::patch('/games/{game}', 'update');
                 });
             });
     });

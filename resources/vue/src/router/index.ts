@@ -11,6 +11,7 @@ import LeaderboardView from "@/views/LeaderboardView.vue";
 import ProfileView from "@/views/ProfileView.vue";
 import NotificationSettingsView from "@/views/NotificationSettingsView.vue";
 import AdminGamesReview from "@/views/AdminGamesReview.vue";
+import GameEditView from "@/views/Admin/GameEditView.vue";
 import LoginView from "@/views/Login.vue";
 
 const routes: RouteRecordRaw[] = [
@@ -71,11 +72,21 @@ const routes: RouteRecordRaw[] = [
             pageSubtitle: "Erinnerungen & Ergebnis-Infos verwalten",
         },
     },
+
+    // Admin review list
     {
         path: "/admin/games/review",
         name: "admin-games-review",
         component: AdminGamesReview,
         meta: { pageTitle: "Spiele prüfen", admin: true },
+    },
+
+    // Admin edit screen
+    {
+        path: "/admin/games/:id/edit",
+        name: "admin-game-edit",
+        component: GameEditView,
+        meta: { pageTitle: "Spiel bearbeiten", pageSubtitle: "Admin", admin: true },
     },
 ];
 

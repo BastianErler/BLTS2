@@ -32,11 +32,14 @@ class Game extends Model
 
     protected $casts = [
         'kickoff_at' => 'datetime',
+
+        'is_home' => 'boolean',
+        'is_derby' => 'boolean',
+        'is_playoff' => 'boolean',
+
         'eisbaeren_goals' => 'integer',
         'opponent_goals' => 'integer',
 
-        // NOTE: Falls diese Spalten nicht in `games` existieren, kannst du sie rausnehmen.
-        // Laravel crasht dadurch nicht, aber es ist verwirrend.
         'joker_data' => 'array',
         'base_price' => 'decimal:2',
         'multiplier' => 'decimal:2',
