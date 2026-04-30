@@ -200,6 +200,8 @@ export const gamesApi = {
             opponent_goals: number | null;
         }>,
     ) => api.patch<{ data: Game }>(`/admin/games/${id}`, data),
+
+    deleteAdmin: (id: number) => api.delete(`/admin/games/${id}`),
 };
 
 // Bets API

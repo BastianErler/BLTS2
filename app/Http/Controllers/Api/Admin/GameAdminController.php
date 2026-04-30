@@ -11,7 +11,6 @@ class GameAdminController extends Controller
 {
     public function update(GameUpdateRequest $request, Game $game)
     {
-        // Guard: bet_deadline_at ist bei euch ein Accessor (kickoff - 6h), kein DB Feld.
         if ($request->has('bet_deadline_at')) {
             return response()->json([
                 'message' => 'bet_deadline_at kann nicht direkt gesetzt werden. Die Deadline wird automatisch aus kickoff_at (−6h) berechnet.',
@@ -20,14 +19,10 @@ class GameAdminController extends Controller
         }
 
         $data = $request->validated();
-
-        // Falls status=finished (oder bereits finished) -> wir brauchen saubere Tore, wenn sie gesetzt werden sollen.
-        // In eurem Setup: finished darf korrigiert werden (Importfehler), also erlauben wir Updates immer.
         $newStatus = $data['status'] ?? $game->status;
 
-        // Apply non-score fields first
         if (array_key_exists('kickoff_at', $data)) {
-            $game->kickoff_at = $data['kickoff_at']; // cast datetime
+            $game->kickoff_at = $data['kickoff_at'];
         }
 
         if (array_key_exists('is_home', $data)) {
@@ -42,13 +37,8 @@ class GameAdminController extends Controller
             $game->is_derby = (bool) $data['is_derby'];
         }
 
-        if (array_key_exists('status', $data)) {
-            $game->status = $data['status'];
-        } else {
-            $game->status = $newStatus;
-        }
+        $game->status = array_key_exists('status', $data) ? $data['status'] : $newStatus;
 
-        // Scores: nullable allowed
         $scoresTouched = false;
 
         if (array_key_exists('eisbaeren_goals', $data)) {
@@ -63,22 +53,12 @@ class GameAdminController extends Controller
 
         $game->save();
 
-        /**
-         * Repricing logic:
-         * - Wenn status finished ist UND beide Tore vorhanden sind:
-         *   -> Bet-Preise neu berechnen, weil Ergebnis die Preise bestimmt.
-         *
-         * Das gilt sowohl:
-         * - beim "erstmalig" finished setzen
-         * - als auch beim Korrigieren eines falschen Ergebnisses.
-         */
         $isFinishedNow =
             $game->status === 'finished'
             && $game->eisbaeren_goals !== null
             && $game->opponent_goals !== null;
 
         if ($isFinishedNow && ($scoresTouched || $request->has('status'))) {
-            // Recalculate all bet prices (but do NOT overwrite locked_at if already set)
             $game->loadMissing('bets');
 
             foreach ($game->bets as $bet) {
@@ -93,5 +73,14 @@ class GameAdminController extends Controller
         }
 
         return new GameResource($game->refresh());
+    }
+
+    public function destroy(Game $game)
+    {
+        $game->delete();
+
+        return response()->json([
+            'message' => 'Spiel wurde gelöscht.',
+        ]);
     }
 }

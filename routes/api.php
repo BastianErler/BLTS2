@@ -102,6 +102,7 @@ Route::middleware('api')->group(function () {
                 // Admin Game Edit
                 Route::controller(GameAdminController::class)->group(function () {
                     Route::patch('/games/{game}', 'update');
+                    Route::delete('/games/{game}', 'destroy');
                 });
             });
     });

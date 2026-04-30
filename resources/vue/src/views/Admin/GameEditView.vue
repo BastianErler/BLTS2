@@ -420,6 +420,15 @@
                     >
                         Abbrechen
                     </button>
+
+                    <button
+                        type="button"
+                        class="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:opacity-50"
+                        :disabled="saving || deleting || !isAdmin"
+                        @click="deleteGame"
+                    >
+                        {{ deleting ? "Lösche…" : "Spiel löschen" }}
+                    </button>
                 </div>
 
                 <div
@@ -443,6 +452,18 @@
                     </div>
                     <div class="mt-1 text-xs text-rose-100/90 break-words">
                         {{ saveError }}
+                    </div>
+                </div>
+
+                <div
+                    v-if="deleteError"
+                    class="mt-3 rounded-2xl border border-rose-300/30 bg-rose-400/10 p-4"
+                >
+                    <div class="text-xs font-semibold text-rose-200">
+                        Löschen fehlgeschlagen
+                    </div>
+                    <div class="mt-1 text-xs text-rose-100/90 break-words">
+                        {{ deleteError }}
                     </div>
                 </div>
             </section>
@@ -472,6 +493,8 @@ const error = ref<string | null>(null);
 const saving = ref(false);
 const saveOk = ref(false);
 const saveError = ref<string | null>(null);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
 const game = ref<Game | null>(null);
 
@@ -691,6 +714,39 @@ async function save() {
             "Speichern fehlgeschlagen.";
     } finally {
         saving.value = false;
+    }
+}
+
+
+async function deleteGame() {
+    if (!isAdmin.value || deleting.value) return;
+
+    const ok = window.confirm(
+        "Willst du dieses Spiel wirklich löschen? Dieser Schritt kann nicht rückgängig gemacht werden.",
+    );
+    if (!ok) return;
+
+    deleting.value = true;
+    deleteError.value = null;
+    saveOk.value = false;
+
+    try {
+        await gamesApi.deleteAdmin(gameId.value);
+
+        const from = route.query.from;
+        if (typeof from === "string" && from.startsWith("/")) {
+            router.replace(from);
+            return;
+        }
+
+        router.replace("/games");
+    } catch (e: any) {
+        deleteError.value =
+            e?.response?.data?.message ??
+            e?.message ??
+            "Löschen fehlgeschlagen.";
+    } finally {
+        deleting.value = false;
     }
 }
 
