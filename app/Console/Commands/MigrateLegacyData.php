@@ -52,7 +52,7 @@ class MigrateLegacyData extends Command
         }
 
         $migrations = [
-            'seasons' => fn() => $this->migrateSeasons($data['season_information'], $dryRun),
+            'seasons' => fn() => $this->migrateSeasons($data['season_information'], $data['teams'], $dryRun),
             'users' => fn() => $this->migrateUsers($data['users'], $dryRun),
             'games' => fn() => $this->migrateGames($data['games'], $data['season_information'], $data['teams'], $dryRun),
             'season_bets' => fn() => $this->migrateSeasonWinnerBets($data['season_winner_tips'], $data['users'], $data['season_information'], $data['teams'], $dryRun),
@@ -181,7 +181,7 @@ class MigrateLegacyData extends Command
         return $rows;
     }
 
-    private function migrateSeasons(array $seasonData, bool $dryRun): void
+    private function migrateSeasons(array $seasonData, array $legacyTeamsData, bool $dryRun): void
     {
         $this->info('🏒 Migrating seasons...');
 
@@ -193,6 +193,8 @@ class MigrateLegacyData extends Command
 
         $bar = $this->output->createProgressBar(count($seasonData));
         $bar->start();
+        $skipReasons = [];
+        $legacyTeamsById = $this->getLegacyTeamsByIdMap($legacyTeamsData);
 
         foreach ($seasonData as $row) {
             [$id, $season, $winnerId, $createdAt, $updatedAt] = $row;
@@ -204,7 +206,7 @@ class MigrateLegacyData extends Command
             $data = [
                 'id' => $id,
                 'name' => $season,
-                'winner_team_id' => $winnerId,
+                'winner_team_id' => null,
                 'start_date' => "$startYear-09-01",
                 'end_date' => $winnerId ? "$endYear-05-01" : null,
                 'is_active' => $season === '25/26',
@@ -216,6 +218,20 @@ class MigrateLegacyData extends Command
                 'updated_at' => $updatedAt ? Carbon::parse($updatedAt) : now(),
             ];
 
+            if ((int) $winnerId > 0) {
+                $resolvedWinnerTeamId = $this->resolveTeamId((int) $winnerId, $legacyTeamsById);
+                if ($resolvedWinnerTeamId) {
+                    $data['winner_team_id'] = $resolvedWinnerTeamId;
+                } else {
+                    $this->addSkipReason(
+                        $skipReasons,
+                        'season_winner_team_not_resolved',
+                        $id,
+                        ['season_name' => $season, 'legacy_winner_team_id' => $winnerId]
+                    );
+                }
+            }
+
             if (!$dryRun) {
                 DB::table('seasons')->insert($data);
             }
@@ -226,6 +242,10 @@ class MigrateLegacyData extends Command
         $bar->finish();
         $this->newLine();
         $this->info("✓ Processed " . count($seasonData) . " seasons");
+        if (!empty($skipReasons)) {
+            $this->warn('⚠ Some season winner teams could not be resolved');
+            $this->printSkipReasonSummary($skipReasons);
+        }
     }
 
     private function migrateUsers(array $userData, bool $dryRun): void
