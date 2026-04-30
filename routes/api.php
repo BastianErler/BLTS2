@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\SeasonController;
 use App\Http\Controllers\Api\Admin\GameReviewController;
 use App\Http\Controllers\Api\Admin\GameSyncController;
 use App\Http\Controllers\Api\Admin\GameAdminController;
+use App\Http\Controllers\Api\Admin\UserAdminController;
 
 /*
 |--------------------------------------------------------------------------
@@ -97,6 +98,12 @@ Route::middleware('api')->group(function () {
                 Route::controller(GameSyncController::class)->group(function () {
                     Route::get('/games/sync/status', 'status');
                     Route::post('/games/sync', 'sync');
+                });
+
+                // Admin User Management
+                Route::controller(UserAdminController::class)->group(function () {
+                    Route::get('/users', 'index');
+                    Route::put('/users/{user}/seasons/{season}', 'updateSeasonSetting');
                 });
 
                 // Admin Game Edit

@@ -258,6 +258,14 @@
                     </button>
 
                     <button
+                        type="button"
+                        class="btn-secondary"
+                        @click="goToAdminUsers"
+                    >
+                        User verwalten
+                    </button>
+
+                    <button
                         v-if="adminReviewCount > 0"
                         type="button"
                         class="btn-secondary"
@@ -294,8 +302,8 @@
                         </div>
                     </div>
                 </div>
-            </div>
 
+            </div>
             <div class="mt-2 text-xs text-white/50">
                 Admin-Bereich ist nur sichtbar, wenn dein Account
                 <b>is_admin</b> ist.
@@ -723,6 +731,9 @@ async function adminRefreshCount() {
 
 function goToAdminReview() {
     router.push({ name: "admin-games-review" });
+}
+function goToAdminUsers() {
+    router.push({ name: "admin-user-season-settings" });
 }
 
 async function adminSyncGames() {
