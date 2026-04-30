@@ -294,6 +294,75 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="col-span-2">
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="text-xs font-semibold text-white/80">
+                                User Übersicht (Season-spezifisch)
+                            </div>
+                            <button
+                                type="button"
+                                class="btn-secondary"
+                                :disabled="adminUsersLoading"
+                                @click="loadAdminUsersForSeason"
+                            >
+                                {{ adminUsersLoading ? "Lädt…" : "Neu laden" }}
+                            </button>
+                        </div>
+
+                        <div class="mt-3 space-y-2 text-xs">
+                            <div
+                                v-for="u in adminUsers"
+                                :key="u.id"
+                                class="rounded-xl border border-white/10 bg-white/5 p-3"
+                            >
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <div class="font-semibold text-white">
+                                            {{ u.name }}
+                                            <span v-if="u.is_admin" class="text-bordeaux-100">
+                                                · Admin
+                                            </span>
+                                        </div>
+                                        <div class="truncate text-white/60">{{ u.email }}</div>
+                                    </div>
+
+                                    <div class="flex gap-2">
+                                        <button
+                                            type="button"
+                                            class="btn-secondary"
+                                            :disabled="adminUsersSaving[u.id]"
+                                            @click="toggleUserSeasonSetting(u, 'exclude_from_leaderboard')"
+                                        >
+                                            {{
+                                                u.season_setting.exclude_from_leaderboard
+                                                    ? "Rangliste: Aus"
+                                                    : "Rangliste: An"
+                                            }}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="btn-secondary"
+                                            :disabled="adminUsersSaving[u.id]"
+                                            @click="toggleUserSeasonSetting(u, 'fee_exempt')"
+                                        >
+                                            {{
+                                                u.season_setting.fee_exempt
+                                                    ? "Beiträge: Frei"
+                                                    : "Beiträge: Aktiv"
+                                            }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="!adminUsersLoading && adminUsers.length === 0" class="text-white/60">
+                                Keine User gefunden.
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="mt-2 text-xs text-white/50">
@@ -628,6 +697,8 @@ import {
     adminApi,
     leaderboardApi,
     type UserStats,
+    type AdminUserRow,
+    seasonsApi,
 } from "@/services/api";
 import { usePwaInstall } from "@/pwa/usePwaInstall";
 
@@ -668,6 +739,10 @@ const adminError = ref<string | null>(null);
 const adminLastSyncIso = ref<string | null>(
     localStorage.getItem("admin_last_sync_iso"),
 );
+const adminUsers = ref<AdminUserRow[]>([]);
+const adminUsersLoading = ref(false);
+const adminUsersSaving = ref<Record<number, boolean>>({});
+const adminSelectedSeasonId = ref<number | null>(null);
 
 const adminLastSyncLabel = computed(() => {
     if (!adminLastSyncIso.value) return "";
@@ -748,6 +823,46 @@ async function adminSyncGames() {
         adminError.value = e?.message || "Admin Sync Fehler";
     } finally {
         adminSyncing.value = false;
+    }
+}
+
+async function loadAdminUsersForSeason() {
+    if (!isAdmin.value || !adminSelectedSeasonId.value) return;
+    adminUsersLoading.value = true;
+    adminError.value = null;
+    try {
+        const res = await adminApi.getUsers(adminSelectedSeasonId.value);
+        adminUsers.value = (res as any)?.data?.data ?? [];
+    } catch (e: any) {
+        adminError.value = e?.message || "Admin User Übersicht Fehler";
+    } finally {
+        adminUsersLoading.value = false;
+    }
+}
+
+async function toggleUserSeasonSetting(
+    user: AdminUserRow,
+    key: "exclude_from_leaderboard" | "fee_exempt",
+) {
+    if (!adminSelectedSeasonId.value) return;
+    const nextSetting = {
+        ...user.season_setting,
+        [key]: !user.season_setting[key],
+    };
+    adminUsersSaving.value[user.id] = true;
+    adminError.value = null;
+    try {
+        await adminApi.updateUserSeasonSetting(
+            user.id,
+            adminSelectedSeasonId.value,
+            nextSetting,
+        );
+        user.season_setting = nextSetting;
+    } catch (e: any) {
+        adminError.value =
+            e?.message || "User Season Setting konnte nicht gespeichert werden";
+    } finally {
+        adminUsersSaving.value[user.id] = false;
     }
 }
 
@@ -890,6 +1005,15 @@ onMounted(async () => {
 
     if (isAdmin.value) {
         await adminRefreshCount();
+        try {
+            const res = await seasonsApi.getAll();
+            const seasons = (res as any)?.data?.data ?? [];
+            const active = seasons.find((s: any) => s.is_active) ?? seasons[0];
+            adminSelectedSeasonId.value = active?.id ?? null;
+        } catch {
+            adminSelectedSeasonId.value = null;
+        }
+        await loadAdminUsersForSeason();
     }
 
     // load stats
