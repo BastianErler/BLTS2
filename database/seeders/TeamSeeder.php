@@ -40,6 +40,18 @@ class TeamSeeder extends Seeder
             ['id' => 15, 'name' => 'Bietigheim Steelers',       'short_name' => 'SCB', 'logo_url' => 'team_SCB.svg'],
             ['id' => 16, 'name' => 'Löwen Frankfurt',           'short_name' => 'LOW', 'logo_url' => 'team_LOW.svg'],
             ['id' => 17, 'name' => 'Dresdner Eislöwen',         'short_name' => 'ELN', 'logo_url' => 'team_ELN.png'],
+            // DEL2 / Aufstieg-Abstieg Absicherung
+            ['id' => 18, 'name' => 'EC Kassel Huskies',         'short_name' => 'ECK', 'logo_url' => 'team_ECK.png'],
+            ['id' => 19, 'name' => 'Starbulls Rosenheim',       'short_name' => 'SBR', 'logo_url' => 'team_SBR.png'],
+            ['id' => 20, 'name' => 'Ravensburg Towerstars',     'short_name' => 'RVT', 'logo_url' => 'team_RVT.png'],
+            ['id' => 21, 'name' => 'Eisbären Regensburg',       'short_name' => 'EBR', 'logo_url' => 'team_EBR.png'],
+            ['id' => 22, 'name' => 'Lausitzer Füchse',          'short_name' => 'LFX', 'logo_url' => 'team_LFX.png'],
+            ['id' => 23, 'name' => 'EV Landshut',               'short_name' => 'EVL', 'logo_url' => 'team_EVL.png'],
+            ['id' => 24, 'name' => 'Eispiraten Crimmitschau',   'short_name' => 'EPC', 'logo_url' => 'team_EPC.png'],
+            ['id' => 25, 'name' => 'EHC Freiburg',              'short_name' => 'FRB', 'logo_url' => 'team_FRB.png'],
+            ['id' => 26, 'name' => 'Blue Devils Weiden',        'short_name' => 'BDW', 'logo_url' => 'team_BDW.png'],
+            ['id' => 27, 'name' => 'EC Bad Nauheim',            'short_name' => 'ECN', 'logo_url' => 'team_ECN.png'],
+            ['id' => 28, 'name' => 'ESV Kaufbeuren',            'short_name' => 'ESV', 'logo_url' => 'team_ESV.png'],
         ];
 
         foreach ($teams as $team) {

@@ -17,12 +17,13 @@ class MigrateLegacyData extends Command
 
     public function handle()
     {
-        $dumpPath = $this->argument('dump-path') ?? base_path('Dump20260131.sql');
+        $dumpPath = $this->resolveDumpPath($this->argument('dump-path'));
         $dryRun = $this->option('dry-run');
         $only = $this->option('only');
 
-        if (!file_exists($dumpPath)) {
+        if (!$dumpPath || !file_exists($dumpPath)) {
             $this->error('Dump file not found at: ' . $dumpPath);
+            $this->line('Tip: Place your file as "Dump.sql" in the project root or pass a custom path.');
             return 1;
         }
 
@@ -53,10 +54,10 @@ class MigrateLegacyData extends Command
         $migrations = [
             'seasons' => fn() => $this->migrateSeasons($data['season_information'], $dryRun),
             'users' => fn() => $this->migrateUsers($data['users'], $dryRun),
-            'games' => fn() => $this->migrateGames($data['games'], $dryRun),
-            'season_bets' => fn() => $this->migrateSeasonWinnerBets($data['season_winner_tips'], $dryRun),
-            'bets' => fn() => $this->migrateTips($data['tips'], $dryRun),
-            'transactions' => fn() => $this->migrateDeposits($data['deposits'], $dryRun),
+            'games' => fn() => $this->migrateGames($data['games'], $data['season_information'], $data['teams'], $dryRun),
+            'season_bets' => fn() => $this->migrateSeasonWinnerBets($data['season_winner_tips'], $data['users'], $data['season_information'], $data['teams'], $dryRun),
+            'bets' => fn() => $this->migrateTips($data['tips'], $data['users'], $data['games'], $dryRun),
+            'transactions' => fn() => $this->migrateDeposits($data['deposits'], $data['users'], $dryRun),
         ];
 
         if ($only) {
@@ -88,6 +89,7 @@ class MigrateLegacyData extends Command
             'deposits' => [],
             'games' => [],
             'tips' => [],
+            'teams' => [],
         ];
 
         $tables = [
@@ -97,6 +99,7 @@ class MigrateLegacyData extends Command
             'deposits' => '/INSERT INTO `deposits` VALUES (.*?);/s',
             'games' => '/INSERT INTO `games` VALUES (.*?);/s',
             'tips' => '/INSERT INTO `tips` VALUES (.*?);/s',
+            'teams' => '/INSERT INTO `teams` VALUES (.*?);/s',
         ];
 
         foreach ($tables as $table => $pattern) {
@@ -106,6 +109,27 @@ class MigrateLegacyData extends Command
         }
 
         return $data;
+    }
+
+    private function resolveDumpPath(?string $customPath): ?string
+    {
+        if ($customPath) {
+            return $customPath;
+        }
+
+        $defaultCandidates = [
+            base_path('Dump.sql'),
+            base_path('dump.sql'),
+            base_path('Dump20260131.sql'),
+        ];
+
+        foreach ($defaultCandidates as $candidate) {
+            if (file_exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $defaultCandidates[0];
     }
 
     private function parseInsertValues(string $values): array
@@ -269,7 +293,7 @@ class MigrateLegacyData extends Command
         }
     }
 
-    private function migrateSeasonWinnerBets(array $tipsData, bool $dryRun): void
+    private function migrateSeasonWinnerBets(array $tipsData, array $userData, array $seasonData, array $legacyTeamsData, bool $dryRun): void
     {
         $this->info('🎯 Migrating season winner bets...');
 
@@ -284,13 +308,15 @@ class MigrateLegacyData extends Command
 
         $skipped = 0;
 
+        $validUserIds = $this->getValidUserIds($userData, $dryRun);
+        $seasonNameToId = $this->getSeasonNameToIdMap($seasonData, $dryRun);
+
+        $legacyTeamsById = $this->getLegacyTeamsByIdMap($legacyTeamsData);
+
         foreach ($tipsData as $row) {
             [$id, $userId, $seasonName, $teamId, $createdAt, $updatedAt] = $row;
 
-            // Check if season exists
-            $seasonId = DB::table('seasons')
-                ->where('name', $seasonName)
-                ->value('id');
+            $seasonId = $seasonNameToId[$seasonName] ?? null;
 
             if (!$seasonId) {
                 $skipped++;
@@ -298,23 +324,14 @@ class MigrateLegacyData extends Command
                 continue;
             }
 
-            // Check if user exists (could be deleted/guest)
-            $userExists = DB::table('users')
-                ->where('id', $userId)
-                ->exists();
-
-            if (!$userExists) {
+            if (!isset($validUserIds[(int) $userId])) {
                 $skipped++;
                 $bar->advance();
                 continue;
             }
 
-            // Check if team exists
-            $teamExists = DB::table('teams')
-                ->where('id', $teamId)
-                ->exists();
-
-            if (!$teamExists) {
+            $resolvedTeamId = $this->resolveTeamId((int) $teamId, $legacyTeamsById);
+            if (!$resolvedTeamId) {
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -324,7 +341,7 @@ class MigrateLegacyData extends Command
                 'id' => $id,
                 'user_id' => $userId,
                 'season_id' => $seasonId,
-                'team_id' => $teamId,
+                'team_id' => $resolvedTeamId,
                 'created_at' => $createdAt ? Carbon::parse($createdAt) : now(),
                 'updated_at' => $updatedAt ? Carbon::parse($updatedAt) : now(),
             ];
@@ -344,7 +361,7 @@ class MigrateLegacyData extends Command
         }
     }
 
-    private function migrateDeposits(array $depositsData, bool $dryRun): void
+    private function migrateDeposits(array $depositsData, array $userData, bool $dryRun): void
     {
         $this->info('💰 Migrating deposits to transactions...');
 
@@ -359,24 +376,19 @@ class MigrateLegacyData extends Command
 
         $skipped = 0;
 
+        $validUserIds = $this->getValidUserIds($userData, $dryRun);
+
         foreach ($depositsData as $row) {
             [$id, $userId, $creatorId, $amount, $createdAt] = $row;
 
-            // Check if user exists
-            $userExists = DB::table('users')
-                ->where('id', $userId)
-                ->exists();
-
-            if (!$userExists) {
+            if (!isset($validUserIds[(int) $userId])) {
                 $skipped++;
                 $bar->advance();
                 continue;
             }
 
             // Check if creator exists, otherwise set to null
-            $creatorExists = DB::table('users')
-                ->where('id', $creatorId)
-                ->exists();
+            $creatorExists = isset($validUserIds[(int) $creatorId]);
 
             if (!$creatorExists) {
                 $creatorId = null; // Set to null if creator doesn't exist
@@ -430,7 +442,7 @@ class MigrateLegacyData extends Command
     /**
      * Migrate games
      */
-    private function migrateGames(array $gamesData, bool $dryRun): void
+    private function migrateGames(array $gamesData, array $seasonData, array $legacyTeamsData, bool $dryRun): void
     {
         $this->info('🏒 Migrating games...');
 
@@ -444,7 +456,9 @@ class MigrateLegacyData extends Command
         $bar->start();
 
         $skipped = 0;
-        $seasonMapping = $this->buildSeasonMapping();
+        $seasonMapping = $this->buildSeasonMapping($seasonData, $dryRun);
+
+        $legacyTeamsById = $this->getLegacyTeamsByIdMap($legacyTeamsData);
 
         foreach ($gamesData as $row) {
             // OLD: id, game_number, home_team_id, away_team_id, game_date, home_goals, away_goals, tip_mail_reminder_send, tip_sms_reminder_send
@@ -459,11 +473,9 @@ class MigrateLegacyData extends Command
 
             // Determine which team is Eisbären Berlin (ID 4)
             $isHome = $homeTeamId == 4;
-            $opponentId = $isHome ? $awayTeamId : $homeTeamId;
-
-            // Check if opponent team exists
-            $teamExists = DB::table('teams')->where('id', $opponentId)->exists();
-            if (!$teamExists) {
+            $legacyOpponentId = $isHome ? (int) $awayTeamId : (int) $homeTeamId;
+            $opponentId = $this->resolveTeamId($legacyOpponentId, $legacyTeamsById);
+            if (!$opponentId) {
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -526,7 +538,7 @@ class MigrateLegacyData extends Command
     /**
      * Migrate tips to bets
      */
-    private function migrateTips(array $tipsData, bool $dryRun): void
+    private function migrateTips(array $tipsData, array $userData, array $gamesData, bool $dryRun): void
     {
         $this->info('🎯 Migrating tips to bets...');
 
@@ -541,6 +553,9 @@ class MigrateLegacyData extends Command
 
         $skipped = 0;
 
+        $validUserIds = $this->getValidUserIds($userData, $dryRun);
+        $gameMap = $this->getGameMap($gamesData, $dryRun);
+
         foreach ($tipsData as $row) {
             // OLD: id, game_id, user_id, home_goals, away_goals
             [$id, $gameId, $userId, $homeGoals, $awayGoals] = $row;
@@ -553,15 +568,14 @@ class MigrateLegacyData extends Command
             }
 
             // Check if user exists
-            $userExists = DB::table('users')->where('id', $userId)->exists();
-            if (!$userExists) {
+            if (!isset($validUserIds[(int) $userId])) {
                 $skipped++;
                 $bar->advance();
                 continue;
             }
 
             // Check if game exists
-            $game = DB::table('games')->find($gameId);
+            $game = $gameMap[(int) $gameId] ?? null;
             if (!$game) {
                 $skipped++;
                 $bar->advance();
@@ -609,11 +623,21 @@ class MigrateLegacyData extends Command
     /**
      * Build season mapping for date lookups
      */
-    private function buildSeasonMapping(): array
+    private function buildSeasonMapping(array $seasonData, bool $dryRun): array
     {
-        $seasons = DB::table('seasons')
-            ->select('id', 'name', 'start_date', 'end_date')
-            ->get();
+        if ($dryRun) {
+            $mapping = [];
+            foreach ($seasonData as $row) {
+                [$id, $seasonName, $winnerId] = $row;
+                [$startYear, $endYear] = explode('/', $seasonName);
+                $start = Carbon::parse('20' . $startYear . '-09-01');
+                $end = $winnerId ? Carbon::parse('20' . $endYear . '-05-01') : $start->copy()->addMonths(9);
+                $mapping[] = ['id' => (int) $id, 'name' => $seasonName, 'start' => $start, 'end' => $end];
+            }
+            return $mapping;
+        }
+
+        $seasons = DB::table('seasons')->select('id', 'name', 'start_date', 'end_date')->get();
 
         $mapping = [];
         foreach ($seasons as $season) {
@@ -642,5 +666,94 @@ class MigrateLegacyData extends Command
         }
 
         return null;
+    }
+
+    private function getValidUserIds(array $userData, bool $dryRun): array
+    {
+        if (!$dryRun) {
+            return DB::table('users')->pluck('id')->mapWithKeys(fn($id) => [(int) $id => true])->all();
+        }
+
+        $ids = [];
+        foreach ($userData as $row) {
+            $id = (int) $row[0];
+            $guest = (bool) ($row[8] ?? false);
+            if (!$guest) {
+                $ids[$id] = true;
+            }
+        }
+        return $ids;
+    }
+
+    private function getSeasonNameToIdMap(array $seasonData, bool $dryRun): array
+    {
+        if (!$dryRun) {
+            return DB::table('seasons')->pluck('id', 'name')->map(fn($id) => (int) $id)->all();
+        }
+
+        $map = [];
+        foreach ($seasonData as $row) {
+            $map[$row[1]] = (int) $row[0];
+        }
+        return $map;
+    }
+
+    private function getGameMap(array $gamesData, bool $dryRun): array
+    {
+        if (!$dryRun) {
+            return DB::table('games')->select('id', 'is_home')->get()->mapWithKeys(fn($game) => [(int) $game->id => $game])->all();
+        }
+
+        $map = [];
+        foreach ($gamesData as $row) {
+            [$id, $gameNumber, $homeTeamId, $awayTeamId] = $row;
+            $map[(int) $id] = (object) ['id' => (int) $id, 'is_home' => ((int) $homeTeamId === 4)];
+        }
+        return $map;
+    }
+
+    private function getLegacyTeamsByIdMap(array $legacyTeamsData): array
+    {
+        $map = [];
+        foreach ($legacyTeamsData as $row) {
+            $legacyId = (int) ($row[0] ?? 0);
+            $name = trim((string) ($row[1] ?? ''));
+            $shortName = trim((string) ($row[2] ?? ''));
+            if ($legacyId > 0) {
+                $map[$legacyId] = ['name' => $name, 'short_name' => $shortName];
+            }
+        }
+        return $map;
+    }
+
+    private function resolveTeamId(int $legacyTeamId, array $legacyTeamsById): ?int
+    {
+        if ($legacyTeamId <= 0) {
+            return null;
+        }
+
+        $directIdExists = DB::table('teams')->where('id', $legacyTeamId)->exists();
+        if ($directIdExists) {
+            return $legacyTeamId;
+        }
+
+        $legacyTeam = $legacyTeamsById[$legacyTeamId] ?? null;
+        if (!$legacyTeam) {
+            return null;
+        }
+
+        $name = $legacyTeam['name'];
+        $shortName = $legacyTeam['short_name'];
+
+        return DB::table('teams')
+            ->where(function ($query) use ($name, $shortName) {
+                if ($name !== '') {
+                    $query->orWhere('name', $name);
+                }
+                if ($shortName !== '') {
+                    $query->orWhere('short_name', $shortName);
+                }
+            })
+            ->value('id');
     }
 }
