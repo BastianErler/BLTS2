@@ -9,11 +9,6 @@
                     <div class="text-sm font-semibold text-white">Konto</div>
                     <div class="text-xs text-white/60">
                         Einzahlungen, offene Beiträge & Stand
-                        <div class="text-xs text-white/60">
-                            DEBUG isAdmin={{ isAdmin }} · stored={{
-                                storedIsAdmin
-                            }}
-                        </div>
                     </div>
                 </div>
 
@@ -738,7 +733,6 @@ const showStatsDetails = ref(false);
 
 /* ======= Admin Section ======= */
 const isAdmin = ref(false);
-const storedIsAdmin = ref("0");
 const adminReviewCount = ref(0);
 const adminReviewLoading = ref(false);
 const adminSyncing = ref(false);
@@ -780,11 +774,9 @@ async function loadMeForAdminFlag() {
 
         isAdmin.value = Boolean(u?.is_admin);
         localStorage.setItem("is_admin", isAdmin.value ? "1" : "0");
-        storedIsAdmin.value = localStorage.getItem("is_admin") ?? "0";
     } catch {
         // fallback: local storage only
         isAdmin.value = localStorage.getItem("is_admin") === "1";
-        storedIsAdmin.value = localStorage.getItem("is_admin") ?? "0";
     }
 }
 
@@ -1010,7 +1002,6 @@ onMounted(async () => {
 
     // Admin status: bevorzugt localStorage (App.vue setzt es), optional via /me refresh
     isAdmin.value = localStorage.getItem("is_admin") === "1";
-    storedIsAdmin.value = localStorage.getItem("is_admin") ?? "0";
 
     await loadMeForAdminFlag();
 

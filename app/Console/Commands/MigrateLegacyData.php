@@ -103,8 +103,10 @@ class MigrateLegacyData extends Command
         ];
 
         foreach ($tables as $table => $pattern) {
-            if (preg_match($pattern, $content, $matches)) {
-                $data[$table] = $this->parseInsertValues($matches[1]);
+            if (preg_match_all($pattern, $content, $matches)) {
+                foreach (($matches[1] ?? []) as $valueBlock) {
+                    $data[$table] = array_merge($data[$table], $this->parseInsertValues($valueBlock));
+                }
             }
         }
 
