@@ -12,6 +12,7 @@ import ProfileView from "@/views/ProfileView.vue";
 import NotificationSettingsView from "@/views/NotificationSettingsView.vue";
 import AdminGamesReview from "@/views/AdminGamesReview.vue";
 import GameEditView from "@/views/Admin/GameEditView.vue";
+import UserSeasonSettingsView from "@/views/Admin/UserSeasonSettingsView.vue";
 import LoginView from "@/views/Login.vue";
 
 const routes: RouteRecordRaw[] = [
@@ -87,6 +88,12 @@ const routes: RouteRecordRaw[] = [
         name: "admin-game-edit",
         component: GameEditView,
         meta: { pageTitle: "Spiel bearbeiten", pageSubtitle: "Admin", admin: true },
+    },
+    {
+        path: "/admin/users/seasons",
+        name: "admin-user-season-settings",
+        component: UserSeasonSettingsView,
+        meta: { pageTitle: "User verwalten", pageSubtitle: "Admin", admin: true },
     },
 ];
 
