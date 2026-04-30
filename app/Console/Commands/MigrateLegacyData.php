@@ -307,6 +307,7 @@ class MigrateLegacyData extends Command
         $bar->start();
 
         $skipped = 0;
+        $skipReasons = [];
 
         $validUserIds = $this->getValidUserIds($userData, $dryRun);
         $seasonNameToId = $this->getSeasonNameToIdMap($seasonData, $dryRun);
@@ -319,12 +320,14 @@ class MigrateLegacyData extends Command
             $seasonId = $seasonNameToId[$seasonName] ?? null;
 
             if (!$seasonId) {
+                $this->addSkipReason($skipReasons, 'season_not_resolved_for_date', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
             }
 
             if (!isset($validUserIds[(int) $userId])) {
+                $this->addSkipReason($skipReasons, 'user_not_found_or_guest', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -375,6 +378,7 @@ class MigrateLegacyData extends Command
         $bar->start();
 
         $skipped = 0;
+        $skipReasons = [];
 
         $validUserIds = $this->getValidUserIds($userData, $dryRun);
 
@@ -382,6 +386,7 @@ class MigrateLegacyData extends Command
             [$id, $userId, $creatorId, $amount, $createdAt] = $row;
 
             if (!isset($validUserIds[(int) $userId])) {
+                $this->addSkipReason($skipReasons, 'user_not_found_or_guest', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -456,6 +461,7 @@ class MigrateLegacyData extends Command
         $bar->start();
 
         $skipped = 0;
+        $skipReasons = [];
         $seasonMapping = $this->buildSeasonMapping($seasonData, $dryRun);
 
         $legacyTeamsById = $this->getLegacyTeamsByIdMap($legacyTeamsData);
@@ -466,6 +472,7 @@ class MigrateLegacyData extends Command
 
             // Skip if essential data is missing
             if (!$gameDate) {
+                $this->addSkipReason($skipReasons, 'missing_game_date', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -476,6 +483,7 @@ class MigrateLegacyData extends Command
             $legacyOpponentId = $isHome ? (int) $awayTeamId : (int) $homeTeamId;
             $opponentId = $this->resolveTeamId($legacyOpponentId, $legacyTeamsById);
             if (!$opponentId) {
+                $this->addSkipReason($skipReasons, 'opponent_team_not_resolved', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -484,6 +492,7 @@ class MigrateLegacyData extends Command
             // Determine season based on game date
             $seasonId = $this->getSeasonIdForDate($gameDate, $seasonMapping);
             if (!$seasonId) {
+                $this->addSkipReason($skipReasons, 'season_not_resolved_for_date', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -531,7 +540,8 @@ class MigrateLegacyData extends Command
         $this->newLine();
         $this->info("✓ Processed " . (count($gamesData) - $skipped) . " games");
         if ($skipped > 0) {
-            $this->warn("⚠ Skipped $skipped games (missing data or team not found)");
+            $this->warn("⚠ Skipped $skipped games");
+            $this->printSkipReasonSummary($skipReasons);
         }
     }
 
@@ -552,6 +562,7 @@ class MigrateLegacyData extends Command
         $bar->start();
 
         $skipped = 0;
+        $skipReasons = [];
 
         $validUserIds = $this->getValidUserIds($userData, $dryRun);
         $gameMap = $this->getGameMap($gamesData, $dryRun);
@@ -562,6 +573,7 @@ class MigrateLegacyData extends Command
 
             // Skip if game_id is null
             if (!$gameId) {
+                $this->addSkipReason($skipReasons, 'missing_game_id', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -569,6 +581,7 @@ class MigrateLegacyData extends Command
 
             // Check if user exists
             if (!isset($validUserIds[(int) $userId])) {
+                $this->addSkipReason($skipReasons, 'user_not_found_or_guest', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -577,6 +590,7 @@ class MigrateLegacyData extends Command
             // Check if game exists
             $game = $gameMap[(int) $gameId] ?? null;
             if (!$game) {
+                $this->addSkipReason($skipReasons, 'game_not_found_after_migration', $id);
                 $skipped++;
                 $bar->advance();
                 continue;
@@ -601,12 +615,10 @@ class MigrateLegacyData extends Command
             ];
 
             if (!$dryRun) {
-                try {
-                    DB::table('bets')->insert($data);
-                } catch (\Exception $e) {
-                    // Skip duplicates or constraint violations
-                    $skipped++;
-                }
+                DB::table('bets')->updateOrInsert(
+                    ['user_id' => $userId, 'game_id' => $gameId],
+                    $data
+                );
             }
 
             $bar->advance();
@@ -616,7 +628,8 @@ class MigrateLegacyData extends Command
         $this->newLine();
         $this->info("✓ Processed " . (count($tipsData) - $skipped) . " bets");
         if ($skipped > 0) {
-            $this->warn("⚠ Skipped $skipped bets (user, game not found, or duplicate)");
+            $this->warn("⚠ Skipped $skipped bets");
+            $this->printSkipReasonSummary($skipReasons);
         }
     }
 
@@ -631,7 +644,7 @@ class MigrateLegacyData extends Command
                 [$id, $seasonName, $winnerId] = $row;
                 [$startYear, $endYear] = explode('/', $seasonName);
                 $start = Carbon::parse('20' . $startYear . '-09-01');
-                $end = $winnerId ? Carbon::parse('20' . $endYear . '-05-01') : $start->copy()->addMonths(9);
+                $end = Carbon::parse('20' . $endYear . '-08-31 23:59:59');
                 $mapping[] = ['id' => (int) $id, 'name' => $seasonName, 'start' => $start, 'end' => $end];
             }
             return $mapping;
@@ -645,7 +658,7 @@ class MigrateLegacyData extends Command
                 'id' => $season->id,
                 'name' => $season->name,
                 'start' => Carbon::parse($season->start_date),
-                'end' => $season->end_date ? Carbon::parse($season->end_date) : Carbon::parse($season->start_date)->addMonths(9),
+                'end' => $season->end_date ? Carbon::parse($season->end_date)->endOfDay() : Carbon::parse($season->start_date)->addYear()->subDay()->endOfDay(),
             ];
         }
 
@@ -661,6 +674,17 @@ class MigrateLegacyData extends Command
 
         foreach ($seasonMapping as $season) {
             if ($date->between($season['start'], $season['end'])) {
+                return $season['id'];
+            }
+        }
+
+        // Fallback by calendar year split (season starts in September)
+        $year = (int) $date->format('Y');
+        $seasonStartYear = (int) $date->format('n') >= 9 ? $year : $year - 1;
+        $seasonName = substr((string) $seasonStartYear, -2) . '/' . substr((string) ($seasonStartYear + 1), -2);
+
+        foreach ($seasonMapping as $season) {
+            if (($season['name'] ?? null) === $seasonName) {
                 return $season['id'];
             }
         }
@@ -724,6 +748,28 @@ class MigrateLegacyData extends Command
             }
         }
         return $map;
+    }
+
+
+    private function addSkipReason(array &$skipReasons, string $reason, int|string|null $legacyId = null): void
+    {
+        if (!isset($skipReasons[$reason])) {
+            $skipReasons[$reason] = ['count' => 0, 'ids' => []];
+        }
+
+        $skipReasons[$reason]['count']++;
+
+        if ($legacyId !== null && count($skipReasons[$reason]['ids']) < 10) {
+            $skipReasons[$reason]['ids'][] = $legacyId;
+        }
+    }
+
+    private function printSkipReasonSummary(array $skipReasons): void
+    {
+        foreach ($skipReasons as $reason => $details) {
+            $examples = empty($details['ids']) ? '' : (' (example legacy IDs: ' . implode(', ', $details['ids']) . ')');
+            $this->line("  - {$reason}: {$details['count']}{$examples}");
+        }
     }
 
     private function resolveTeamId(int $legacyTeamId, array $legacyTeamsById): ?int
