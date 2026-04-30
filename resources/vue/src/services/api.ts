@@ -265,12 +265,34 @@ export type AdminSyncResponse = {
     output?: string;
 };
 
+export type AdminSeasonUserSetting = {
+    exclude_from_leaderboard: boolean;
+    fee_exempt: boolean;
+};
+
+export type AdminUserRow = {
+    id: number;
+    name: string;
+    email: string;
+    is_admin: boolean;
+    season_setting: AdminSeasonUserSetting;
+};
+
 export const adminApi = {
     getGamesReviewCount: () =>
         api.get<AdminReviewCountResponse>("/admin/games/review/count"),
 
     syncGames: (data: AdminSyncPayload) =>
         api.post<AdminSyncResponse>("/admin/games/sync", data),
+    getUsers: (seasonId: number) =>
+        api.get<{ data: AdminUserRow[] }>("/admin/users", {
+            params: { season_id: seasonId },
+        }),
+    updateUserSeasonSetting: (
+        userId: number,
+        seasonId: number,
+        data: AdminSeasonUserSetting,
+    ) => api.put(`/admin/users/${userId}/seasons/${seasonId}`, data),
 };
 
 export const seasonsApi = {
