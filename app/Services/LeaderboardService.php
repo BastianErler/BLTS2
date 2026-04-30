@@ -70,7 +70,14 @@ class LeaderboardService
                     $join->where('games.kickoff_at', '<=', $cutoff);
                 }
             })
-            ->where('users.is_admin', false)
+            ->leftJoin('season_user_settings as sus', function ($join) use ($season) {
+                $join->on('sus.user_id', '=', 'users.id')
+                    ->where('sus.season_id', '=', $season->id);
+            })
+            ->where(function ($query) {
+                $query->whereNull('sus.exclude_from_leaderboard')
+                    ->orWhere('sus.exclude_from_leaderboard', false);
+            })
             ->groupBy('users.id', 'users.name', 'users.jokers_remaining')
             ->selectRaw('
                 users.id,
