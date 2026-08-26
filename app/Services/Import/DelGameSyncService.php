@@ -6,14 +6,14 @@ namespace App\Services\Import;
 
 use App\Models\Season;
 use App\Models\Team;
+use App\Services\Import\Sources\EisbaerenResultsParser;
+use App\Services\Import\Sources\EisbaerenScheduleParser;
+use App\Services\Import\Sources\PennyParser;
+use App\Services\Import\Sources\SportschauSource;
 use App\Support\Season\CurrentSeason;
 use Carbon\CarbonImmutable;
 use GuzzleHttp\Client;
-
-use App\Services\Import\Sources\PennyParser;
-use App\Services\Import\Sources\EisbaerenScheduleParser;
-use App\Services\Import\Sources\EisbaerenResultsParser;
-use App\Services\Import\Sources\SportschauSource;
+use Illuminate\Support\Facades\Log;
 
 final class DelGameSyncService
 {
@@ -27,7 +27,7 @@ final class DelGameSyncService
         private readonly PennyParser $penny,
         private readonly EisbaerenScheduleParser $ebbSchedule,
         private readonly EisbaerenResultsParser $ebbResults,
-        private readonly ?SportschauSource $sportschau = null, // optional
+        private readonly ?SportschauSource $sportschau = null,
     ) {}
 
     /**
@@ -35,89 +35,112 @@ final class DelGameSyncService
      */
     public function syncCurrentSeason(): array
     {
-        // Saisonfenster: 01.08.YYYY .. 31.07.YYYY+1 (CurrentSeason)
         $season = CurrentSeason::resolveOrCreateCurrentSeason();
-        [$seasonStart, $seasonEnd] = CurrentSeason::seasonWindowForDate(CarbonImmutable::now(self::TZ));
+        [$seasonStart, $seasonEnd] = CurrentSeason::seasonWindowForDate(
+            CarbonImmutable::now(self::TZ)
+        );
 
         $ebb = $this->teamResolver->findByName('Eisbären Berlin');
+
         if (!$ebb) {
             throw new \RuntimeException('Team "Eisbären Berlin" not found in DB.');
         }
 
-        // Fallback matching: alle Team-Namen aus der DB
         $allTeamNames = Team::query()
             ->pluck('name')
-            ->filter(fn($v) => is_string($v) && trim($v) !== '')
+            ->filter(fn($value) => is_string($value) && trim($value) !== '')
             ->values()
             ->all();
 
         $drafts = [];
 
-        // ------------------------------------------------------------
-        // Source 1: PENNY (Matchday + W/L + evtl. Score; meist keine Uhrzeit)
-        // ------------------------------------------------------------
+        // Source 1: PENNY
         $pennyUrl = 'https://www.penny-del.org/teams/eisbaeren-berlin/spielplan';
+
         if ($pennyHtml = $this->fetchHtml($pennyUrl)) {
-            $drafts = array_merge($drafts, $this->penny->parse($pennyHtml, $pennyUrl, $allTeamNames));
+            $parsed = $this->penny->parse($pennyHtml, $pennyUrl, $allTeamNames);
+            $this->logParserResult('PENNY', $parsed);
+            $drafts = array_merge($drafts, $parsed);
         }
 
-        // ------------------------------------------------------------
-        // Source 2: Eisbaeren schedule (Future with kickoff time)
-        // ------------------------------------------------------------
+        // Source 2: Eisbären-Spielplan
         $ebbScheduleUrl = 'https://www.eisbaeren.de/spielplan-tabelle/spielplan';
+
         if ($html = $this->fetchHtml($ebbScheduleUrl)) {
-            $drafts = array_merge($drafts, $this->ebbSchedule->parse($html, $ebbScheduleUrl));
+            $parsed = $this->ebbSchedule->parse($html, $ebbScheduleUrl);
+            $this->logParserResult('Eisbären schedule', $parsed);
+            $drafts = array_merge($drafts, $parsed);
         }
 
-        // ------------------------------------------------------------
-        // Source 3: Eisbaeren results (History; filtered later by season window)
-        // ------------------------------------------------------------
+        // Source 3: Eisbären-Ergebnisse. Kann historische Saisons enthalten.
         $ebbResultsUrl = 'https://www.eisbaeren.de/spielplan-tabelle/ergebnisse';
+
         if ($html = $this->fetchHtml($ebbResultsUrl)) {
-            $drafts = array_merge($drafts, $this->ebbResults->parse($html, $ebbResultsUrl));
+            $parsed = $this->ebbResults->parse($html, $ebbResultsUrl);
+            $this->logParserResult('Eisbären results', $parsed);
+            $drafts = array_merge($drafts, $parsed);
         }
 
-        // ------------------------------------------------------------
-        // Source 4: sportschau best-effort (optional)
-        // ------------------------------------------------------------
+        // Source 4: Sportschau, optional
         if ($this->sportschau) {
             $sportschauUrl = 'https://www.sportschau.de/live-und-ergebnisse/verein/te2927/eisbaeren-berlin/spielplan-team';
+
             if ($html = $this->fetchHtml($sportschauUrl)) {
-                $drafts = array_merge($drafts, $this->sportschau->parse($html, $sportschauUrl));
+                $parsed = $this->sportschau->parse($html, $sportschauUrl);
+                $this->logParserResult('Sportschau', $parsed);
+                $drafts = array_merge($drafts, $parsed);
             }
         }
 
-        // Normalize names lightly (keine Teamliste; nur harmlose Text-Reinigung)
-        foreach ($drafts as &$d) {
-            $d['home'] = $this->normalizeTeamName((string) ($d['home'] ?? ''));
-            $d['away'] = $this->normalizeTeamName((string) ($d['away'] ?? ''));
-        }
-        unset($d);
+        Log::info('Game sync parser total', [
+            'draft_count' => count($drafts),
+        ]);
 
-        // Merge drafts (date+home+away)
+        foreach ($drafts as &$draft) {
+            $draft['home'] = $this->normalizeTeamName((string) ($draft['home'] ?? ''));
+            $draft['away'] = $this->normalizeTeamName((string) ($draft['away'] ?? ''));
+        }
+
+        unset($draft);
+
         $merged = $this->merger->merge($drafts);
+
+        Log::info('Game sync merge result', [
+            'merged_count' => count($merged),
+        ]);
 
         $imported = 0;
         $needsReview = 0;
         $skippedResolve = 0;
         $skippedOutside = 0;
 
-        foreach ($merged as $g) {
-            $homeName = (string) ($g['home'] ?? '');
-            $awayName = (string) ($g['away'] ?? '');
+        foreach ($merged as $game) {
+            $homeName = (string) ($game['home'] ?? '');
+            $awayName = (string) ($game['away'] ?? '');
+
             if ($homeName === '' || $awayName === '') {
+                Log::warning('Game skipped because team name is empty', [
+                    'game' => $game,
+                ]);
                 continue;
             }
 
-            // Ensure kickoff exists (DB NOT NULL) – and use date-based fallback.
-            $kickoff = $g['kickoff_at'] ?? null;
+            $kickoff = $game['kickoff_at'] ?? null;
+
             if (!$kickoff instanceof CarbonImmutable) {
-                $kickoff = $this->fallbackKickoffFromDate($g['date'] ?? null);
-                $g['needs_review'] = true;
+                $kickoff = $this->fallbackKickoffFromDate($game['date'] ?? null);
+                $game['needs_review'] = true;
             }
 
-            // HARD RULE: only current season window
             if (!CurrentSeason::isInWindow($kickoff, $seasonStart, $seasonEnd)) {
+                Log::warning('Game skipped outside season', [
+                    'source' => $game['source'] ?? null,
+                    'date' => $game['date'] ?? null,
+                    'kickoff_at' => $kickoff->toIso8601String(),
+                    'home' => $homeName,
+                    'away' => $awayName,
+                ]);
+
                 $skippedOutside++;
                 continue;
             }
@@ -126,11 +149,19 @@ final class DelGameSyncService
             $awayTeam = $this->teamResolver->findByName($awayName);
 
             if (!$homeTeam || !$awayTeam) {
+                Log::warning('Game skipped because team could not be resolved', [
+                    'home' => $homeName,
+                    'away' => $awayName,
+                    'home_resolved' => (bool) $homeTeam,
+                    'away_resolved' => (bool) $awayTeam,
+                    'date' => $game['date'] ?? null,
+                    'kickoff_at' => $kickoff->toIso8601String(),
+                ]);
+
                 $skippedResolve++;
                 continue;
             }
 
-            // EBB-centric mapping (should always be true for these sources)
             if ((int) $homeTeam->id === (int) $ebb->id) {
                 $isHome = true;
                 $opponentId = (int) $awayTeam->id;
@@ -138,34 +169,33 @@ final class DelGameSyncService
                 $isHome = false;
                 $opponentId = (int) $homeTeam->id;
             } else {
-                // Not an EBB match -> ignore
                 continue;
             }
 
-            $status = (string) ($g['status'] ?? 'scheduled');
-            $matchday = isset($g['matchday']) ? (int) $g['matchday'] : null;
+            $ebbGoals = $game['ebb_goals'] ?? null;
+            $oppGoals = $game['opp_goals'] ?? null;
+            $status = (string) ($game['status'] ?? 'scheduled');
 
-            $ebbGoals = $g['ebb_goals'] ?? null;
-            $oppGoals = $g['opp_goals'] ?? null;
             if ($ebbGoals !== null && $oppGoals !== null) {
                 $status = 'finished';
             }
 
-            $needs = (bool) ($g['needs_review'] ?? false);
+            $needs = (bool) ($game['needs_review'] ?? false);
+
             if ($needs) {
                 $needsReview++;
             }
 
             $this->importer->upsert([
                 'season_id' => (int) $season->id,
-                'matchday' => $matchday,
+                'matchday' => isset($game['matchday']) ? (int) $game['matchday'] : null,
                 'opponent_id' => $opponentId,
                 'is_home' => $isHome,
                 'kickoff_at' => $kickoff,
                 'needs_review' => $needs,
                 'status' => $status,
-                'source' => (string) ($g['source'] ?? 'multi'),
-                'external_url' => $g['external_url'] ?? null,
+                'source' => (string) ($game['source'] ?? 'multi'),
+                'external_url' => $game['external_url'] ?? null,
                 'eisbaeren_goals' => $ebbGoals,
                 'opponent_goals' => $oppGoals,
             ]);
@@ -183,45 +213,63 @@ final class DelGameSyncService
         ];
     }
 
+    private function logParserResult(string $source, array $games): void
+    {
+        $lastKey = array_key_last($games);
+
+        Log::info("{$source} parser result", [
+            'count' => count($games),
+            'first_date' => $games[0]['date'] ?? null,
+            'last_date' => $lastKey !== null ? ($games[$lastKey]['date'] ?? null) : null,
+        ]);
+    }
+
     private function fetchHtml(string $url): ?string
     {
         try {
-            $res = $this->http->request('GET', $url, [
+            $response = $this->http->request('GET', $url, [
                 'headers' => [
                     'User-Agent' => 'BLTS2 Game Sync (+https://example.invalid)',
                     'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 ],
                 'timeout' => 25,
             ]);
-            return (string) $res->getBody();
-        } catch (\Throwable) {
+
+            return (string) $response->getBody();
+        } catch (\Throwable $exception) {
+            Log::warning('Could not fetch game source', [
+                'url' => $url,
+                'error' => $exception->getMessage(),
+            ]);
+
             return null;
         }
     }
 
     private function normalizeTeamName(string $name): string
     {
-        $n = trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
+        $name = trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
+        $name = preg_replace('/\bTickets?\b/iu', '', $name) ?? $name;
 
-        // minimal cleanup: Sportschau/PENNY noise
-        $n = preg_replace('/\bTickets?\b/iu', '', $n) ?? $n;
-
-        return trim(preg_replace('/\s+/u', ' ', $n) ?? $n);
+        return trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
     }
 
     private function fallbackKickoffFromDate(mixed $date): CarbonImmutable
     {
-        // If we only have a date: default to 19:30 local and mark needs_review.
         if (is_string($date) && preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $date)) {
             try {
-                return CarbonImmutable::createFromFormat('d.m.Y H:i', $date . ' 19:30', self::TZ);
+                return CarbonImmutable::createFromFormat(
+                    'd.m.Y H:i',
+                    $date . ' 19:30',
+                    self::TZ
+                );
             } catch (\Throwable) {
-                // ignore
+                // Fallback below.
             }
         }
 
-        // Absolute fallback: now + 1 day 19:30
-        $now = CarbonImmutable::now(self::TZ)->addDay();
-        return $now->setTime(19, 30);
+        return CarbonImmutable::now(self::TZ)
+            ->addDay()
+            ->setTime(19, 30);
     }
 }

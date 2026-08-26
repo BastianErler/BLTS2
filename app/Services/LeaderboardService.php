@@ -54,14 +54,26 @@ class LeaderboardService
         );
     }
 
-    /**
-     * Diese Methode ist exakt dein SQL – nur aus dem Controller rausgezogen.
-     */
     public function buildRanking(Season $season, ?Carbon $cutoff = null): array
     {
+        // Jeder abgeschlossene Spieltag zählt – auch wenn ein Spieler keinen Tipp abgegeben hat.
+        $finishedGameCount = Game::query()
+            ->where('season_id', $season->id)
+            ->where('status', 'finished')
+            ->when(
+                $cutoff,
+                fn($query) =>
+                $query->where('kickoff_at', '<=', $cutoff)
+            )
+            ->count();
+
+        if ($finishedGameCount === 0) {
+            return [];
+        }
+
         $rows = DB::table('users')
-            ->leftJoin('bets', 'bets.user_id', '=', 'users.id')
-            ->leftJoin('games', function ($join) use ($season, $cutoff) {
+            ->join('bets', 'bets.user_id', '=', 'users.id')
+            ->join('games', function ($join) use ($season, $cutoff) {
                 $join->on('games.id', '=', 'bets.game_id')
                     ->where('games.season_id', '=', $season->id)
                     ->where('games.status', '=', 'finished');
@@ -83,32 +95,44 @@ class LeaderboardService
                 users.id,
                 users.name,
                 users.jokers_remaining,
-                COALESCE(ROUND(SUM(bets.final_price), 2), 0) as total_cost,
-                COUNT(bets.id) as bet_count,
-                SUM(CASE WHEN bets.base_price = 0.00 THEN 1 ELSE 0 END) as exact_bets
+                COALESCE(ROUND(SUM(bets.final_price), 2), 0) as submitted_cost,
+                COUNT(games.id) as bet_count,
+                COALESCE(SUM(
+                    CASE WHEN bets.base_price = 0.00 THEN 1 ELSE 0 END
+                ), 0) as exact_bets
             ')
-            ->orderBy('total_cost')
-            ->orderByDesc('exact_bets')
-            ->orderBy('users.id')
             ->get();
 
-        $rank = 1;
+        return $rows
+            ->map(function ($row) use ($finishedGameCount) {
+                $betCount = (int) $row->bet_count;
+                $submittedCost = (float) $row->submitted_cost;
+                $missingTips = max(0, $finishedGameCount - $betCount);
+                $totalCost = round($submittedCost + $missingTips, 2);
 
-        return $rows->map(function ($r) use (&$rank) {
-            $betCount = (int) $r->bet_count;
-            $totalCost = (float) $r->total_cost;
-
-            return [
-                'id' => (int) $r->id,
-                'name' => (string) $r->name,
-                'total_cost' => $totalCost,
-                'bet_count' => $betCount,
-                'exact_bets' => (int) $r->exact_bets,
-                'average_cost' => $betCount > 0 ? round($totalCost / $betCount, 2) : 0.0,
-                'jokers_remaining' => (int) $r->jokers_remaining,
-                'rank' => $rank++,
-            ];
-        })->toArray();
+                return [
+                    'id' => (int) $row->id,
+                    'name' => (string) $row->name,
+                    'total_cost' => $totalCost,
+                    'bet_count' => $betCount,
+                    'missing_bets' => $missingTips,
+                    'exact_bets' => (int) $row->exact_bets,
+                    'average_cost' => $finishedGameCount > 0
+                        ? round($totalCost / $finishedGameCount, 2)
+                        : 0.0,
+                    'jokers_remaining' => (int) $row->jokers_remaining,
+                ];
+            })
+            ->sort(function ($a, $b) {
+                return [$a['total_cost'], -$a['exact_bets'], $a['id']]
+                    <=> [$b['total_cost'], -$b['exact_bets'], $b['id']];
+            })
+            ->values()
+            ->map(function (array $row, int $index) {
+                $row['rank'] = $index + 1;
+                return $row;
+            })
+            ->toArray();
     }
 
     public function rankForUser(User $user, Season $season, ?Carbon $cutoff = null): ?int
