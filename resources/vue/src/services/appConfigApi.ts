@@ -1,3 +1,5 @@
+import api from "@/services/api";
+
 export type AppConfigResponse = {
     pwa?: {
         debug?: boolean;
@@ -7,24 +9,9 @@ export type AppConfigResponse = {
     };
 };
 
-function authHeaders(): Record<string, string> {
-    const token = localStorage.getItem("auth_token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export const appConfigApi = {
     async get() {
-        const res = await fetch("/api/app-config", {
-            headers: {
-                ...authHeaders(),
-                Accept: "application/json",
-            },
-        });
-
-        if (!res.ok) {
-            throw new Error(`app-config failed (${res.status})`);
-        }
-
-        return (await res.json()) as AppConfigResponse;
+        const response = await api.get<AppConfigResponse>("/app-config");
+        return response.data;
     },
 };

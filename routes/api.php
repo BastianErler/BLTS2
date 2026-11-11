@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AppConfigController;
+use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\BetController;
 use App\Http\Controllers\Api\GameController;
 use App\Http\Controllers\Api\LeaderboardController;
@@ -39,6 +40,8 @@ Route::middleware('api')->group(function () {
     */
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/app-config', [AppConfigController::class, 'show']);
+        Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware('throttle:20,1');
+        Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware('throttle:20,1');
 
         // Auth / User
         Route::controller(AuthController::class)->group(function () {

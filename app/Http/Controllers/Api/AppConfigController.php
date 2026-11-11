@@ -29,7 +29,7 @@ class AppConfigController extends Controller
 
         // 🔧 Für Push brauchst du später VAPID public key (nur Admins sichtbar im Debug)
         // Beispiel ENV: VAPID_PUBLIC_KEY="BEl...deinKey..."
-        $vapidPublicKey = env('VAPID_PUBLIC_KEY');
+        $vapidPublicKey = config('services.webpush.vapid.public_key');
 
         return response()->json([
             'pwa' => [
@@ -37,7 +37,7 @@ class AppConfigController extends Controller
                 'push_test' => $isAdmin,
 
                 // optional fürs Frontend Debug / Subscribe
-                'vapid_public_key' => $isAdmin ? $vapidPublicKey : null,
+                'vapid_public_key' => $vapidPublicKey,
 
                 // optional: wir können auch eine "environment" Info geben
                 'env' => $isAdmin ? app()->environment() : null,
