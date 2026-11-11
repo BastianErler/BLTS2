@@ -99,6 +99,11 @@ class LeaderboardController extends Controller
                 })
                 ->get();
 
+            $finishedCount = $participation
+                ? $season->games()->where('status', 'finished')->count()
+                : 0;
+            $activeCost = round((float) $bets->sum('final_price') + max(0, $finishedCount - $bets->count()), 2);
+
             // ✅ Rank aus der gleichen Ranking-Quelle (Service), damit konsistent
             $position = $lb->rankForUser($user, $season);
 
@@ -115,7 +120,7 @@ class LeaderboardController extends Controller
                 ],
                 'total_cost' => $participation?->withdrawn_at
                     ? (float) $participation->frozen_cost
-                    : round($bets->sum('final_price'), 2),
+                    : $activeCost,
                 'bet_count' => $bets->count(),
                 'exact_bets' => $bets->where('base_price', 0.00)->count(),
                 'tendency_bets' => $bets->where('base_price', 0.30)->count(),

@@ -70,6 +70,7 @@ class SeasonParticipationTest extends TestCase
         $ranking = app(LeaderboardService::class)->buildRanking($season);
         $this->assertSame($user->id, $ranking[0]['id']);
         $this->assertSame(1.0, $ranking[0]['total_cost']);
+        $this->getJson('/api/leaderboard/user-stats?season_id='.$season->id)->assertOk()->assertJsonPath('total_cost', 1);
     }
 
     public function test_request_sends_push_once_and_approval_freezes_missing_bet_cost(): void
