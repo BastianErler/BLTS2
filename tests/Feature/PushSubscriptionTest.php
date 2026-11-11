@@ -39,4 +39,15 @@ class PushSubscriptionTest extends TestCase
         $this->actingAs($other)->deleteJson('/api/push-subscriptions', ['endpoint' => $endpoint])->assertOk();
         $this->assertDatabaseHas('push_subscriptions', ['user_id' => $owner->id, 'endpoint' => $endpoint]);
     }
+
+    public function test_registering_an_existing_device_transfers_it_to_the_current_user(): void
+    {
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $payload = ['endpoint' => 'https://fcm.googleapis.com/fcm/send/test', 'keys' => ['p256dh' => 'key', 'auth' => 'secret']];
+        $this->actingAs($owner)->postJson('/api/push-subscriptions', $payload)->assertOk();
+        $this->actingAs($other)->postJson('/api/push-subscriptions', $payload)->assertOk();
+        $this->assertDatabaseMissing('push_subscriptions', ['user_id' => $owner->id, 'endpoint' => $payload['endpoint']]);
+        $this->assertDatabaseHas('push_subscriptions', ['user_id' => $other->id, 'endpoint' => $payload['endpoint']]);
+    }
 }

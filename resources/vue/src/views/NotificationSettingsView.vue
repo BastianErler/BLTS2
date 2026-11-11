@@ -276,11 +276,13 @@ const pushError = ref<string | null>(null);
 async function setPushEnabled(enabled: boolean) {
     pushError.value = null;
     try {
-        const registration = await navigator.serviceWorker.ready;
-        let subscription = await registration.pushManager.getSubscription();
         if (enabled) {
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') throw new Error('Die Push-Berechtigung wurde nicht erteilt.');
+        }
+        const registration = await navigator.serviceWorker.ready;
+        let subscription = await registration.pushManager.getSubscription();
+        if (enabled) {
             const config = await appConfigApi.get();
             const key = config.pwa?.vapid_public_key;
             if (!key) throw new Error('Web-Push ist auf dem Server nicht konfiguriert.');

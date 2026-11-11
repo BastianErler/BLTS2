@@ -10,3 +10,5 @@ Artisan::command('inspire', function () {
 
 
 Schedule::command('games:sync-status')->everyMinute()->withoutOverlapping();
+Schedule::command('notifications:dispatch')->everyMinute()->withoutOverlapping()
+    ->when(fn () => filled(config('services.webpush.vapid.public_key')) && filled(config('services.webpush.vapid.private_key')));
