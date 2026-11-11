@@ -14,8 +14,11 @@ verwendet Laravel 12 und Vue 3. Alternativ kann der Devcontainer verwendet werde
    nicht automatisch importiert.
 4. `php artisan serve` und in einem zweiten Terminal `npm run dev` starten.
    Die Standardports sind 8000 (API) und 5173 (Vite).
-5. `VITE_API_URL` muss für den Browser erreichbar sein und auf die API inklusive
-   `/api` zeigen. Die Konfiguration für Vite liegt unter `resources/vue`.
+5. `resources/vue/.env.example` nach `resources/vue/.env` kopieren. Die SPA nutzt
+   `VITE_API_URL=/api`; Vite leitet `/api` und `/sanctum` an Port 8000 weiter.
+   Für einen abweichenden Backend-Host kann beim Start von Vite die Variable
+   `API_PROXY_TARGET` gesetzt werden. Den tatsächlich benutzten Browser-Host samt
+   Port in `SANCTUM_STATEFUL_DOMAINS` eintragen.
 
 Der Standard-Seeder legt Teams, aber keine Benutzer oder Saison an. Der optionale
 DevelopmentSeeder enthält ein bekanntes Testpasswort und darf nicht in einer
@@ -49,6 +52,11 @@ einen überwachten `php artisan queue:work`-Prozess betreiben. Push-Benachrichti
 benötigen HTTPS, gültige VAPID-Schlüssel und eine vollständige Subscription-Integration;
 die vorhandenen Push-Controller allein aktivieren diese Funktion noch nicht.
 
-Das aktuelle Browser-Login speichert Bearer-Tokens im localStorage. Vor öffentlicher
-Nutzung sollten Authentifizierung, Token-Lebensdauer, XSS-Schutz, CORS und die
-Zugriffsberechtigungen gesondert geprüft werden.
+Frontend und API müssen über dieselbe HTTPS-Origin erreichbar sein; der Reverse
+Proxy leitet `/api` und `/sanctum` an Laravel weiter. Das Browser-Login verwendet
+eine HttpOnly-Sitzung und Sanctums CSRF-Schutz. In Produktion `SESSION_SECURE_COOKIE=true`
+und `SANCTUM_STATEFUL_DOMAINS` auf die verwendete Domain setzen. Mehrere Geräte
+können gleichzeitig angemeldet sein; Logout beendet die aktuelle Sitzung.
+Für Push gültige VAPID-Schlüssel setzen und auf jedem Gerät Push aktivieren;
+Push benötigt HTTPS oder localhost. `notifications:dispatch` wird bei gesetzten
+VAPID-Schlüsseln vom Scheduler minütlich ausgeführt.

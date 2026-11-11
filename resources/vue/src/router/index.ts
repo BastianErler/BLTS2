@@ -14,6 +14,10 @@ import AdminGamesReview from "@/views/AdminGamesReview.vue";
 import GameEditView from "@/views/Admin/GameEditView.vue";
 import UserSeasonSettingsView from "@/views/Admin/UserSeasonSettingsView.vue";
 import LoginView from "@/views/Login.vue";
+import { authApi } from "@/services/api";
+
+// Remove tokens left behind by the previous bearer-token login.
+localStorage.removeItem("auth_token");
 
 const routes: RouteRecordRaw[] = [
     {
@@ -99,19 +103,16 @@ const routes: RouteRecordRaw[] = [
 
 const router = createRouter({ history: createWebHistory(), routes });
 
-router.beforeEach((to) => {
-    const token = localStorage.getItem("auth_token");
-
-    if (!token && to.name !== "login") {
-        return { name: "login" };
+router.beforeEach(async (to) => {
+    if (to.name === 'login') return true;
+    try {
+        const { data } = await authApi.me();
+        localStorage.setItem('is_admin', data.is_admin ? '1' : '0');
+        if (to.meta?.admin && !data.is_admin) return { name: 'home' };
+        return true;
+    } catch {
+        return { name: 'login' };
     }
-
-    if (to.meta?.admin) {
-        const isAdmin = localStorage.getItem("is_admin") === "1";
-        if (!isAdmin) return { name: "home" };
-    }
-
-    return true;
 });
 
 export default router;

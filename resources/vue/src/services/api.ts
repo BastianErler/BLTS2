@@ -7,7 +7,8 @@ if (!baseURL) {
 
 const api = axios.create({
     baseURL,
-    withCredentials: false,
+    withCredentials: true,
+    withXSRFToken: true,
     headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -20,9 +21,7 @@ api.interceptors.response.use(
         const status = error?.response?.status;
 
         if (status === 401) {
-            localStorage.removeItem("auth_token");
-
-            if (window.location.pathname !== "/login") {
+            if (window.location.pathname !== "/login" && !error.config?.url?.endsWith('/me')) {
                 window.location.href = "/login";
             }
         }
@@ -30,15 +29,6 @@ api.interceptors.response.use(
         return Promise.reject(error);
     },
 );
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("auth_token");
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
 
 export interface MeResponse {
     id: number;
@@ -241,8 +231,10 @@ export const leaderboardApi = {
 
 // Auth API
 export const authApi = {
-    login: (email: string, password: string) =>
-        api.post("/login", { email, password }),
+    login: async (email: string, password: string) => {
+        await axios.get('/sanctum/csrf-cookie', { withCredentials: true });
+        return api.post("/login", { email, password });
+    },
 
     logout: () => api.post("/logout"),
 
