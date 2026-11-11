@@ -41,7 +41,7 @@ class GameTest extends TestCase
                 'data' => [
                     '*' => [
                         'id',
-                        'game_number',
+                        'match_number',
                         'opponent',
                         'kickoff_at',
                         'status',
@@ -123,7 +123,7 @@ class GameTest extends TestCase
             ->assertJson([
                 'data' => [
                     'id' => $game->id,
-                    'game_number' => $game->game_number,
+                    'match_number' => $game->match_number,
                 ]
             ]);
     }

@@ -119,7 +119,7 @@ type TabKey = "upcoming" | "live" | "past";
 
 const activeTab = ref<TabKey>("upcoming");
 
-const tabs = [
+const tabs: { key: TabKey; label: string }[] = [
     { key: "upcoming", label: "Kommende" },
     { key: "live", label: "Live" },
     { key: "past", label: "Vergangen" },

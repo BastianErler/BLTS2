@@ -198,7 +198,7 @@ const leftLogo = computed(() => getLogoUrl(leftTeam.value.logo_url));
 const rightLogo = computed(() => getLogoUrl(rightTeam.value.logo_url));
 
 const headlineDate = computed(() => {
-    if (!props.game) return "";
+    if (!props.game?.kickoff_at) return "";
     const date = new Date(props.game.kickoff_at);
     const d = date.toLocaleDateString("de-DE", {
         day: "2-digit",

@@ -20,7 +20,7 @@
             <input
                 :id="inputId"
                 :type="type"
-                :value="modelValue"
+                :value="modelValue ?? ''"
                 :placeholder="placeholder"
                 :disabled="disabled"
                 :required="required"
@@ -56,10 +56,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useId, useSlots } from "vue";
+import { computed, useId, useSlots, type PropType } from "vue";
 
 const props = defineProps({
-    modelValue: [String, Number],
+    modelValue: { type: [String, Number] as PropType<string | number | null>, default: null },
     type: { type: String, default: "text" },
     label: String,
     placeholder: String,

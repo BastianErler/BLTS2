@@ -277,7 +277,7 @@ const eisbaeren: Team = {
     logo_url: "team_EBB.svg",
 };
 
-function formatKickoff(iso?: string) {
+function formatKickoff(iso?: string | null) {
     if (!iso) return "";
     const d = new Date(iso);
     const date = d.toLocaleDateString("de-DE", {

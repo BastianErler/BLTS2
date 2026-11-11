@@ -16,20 +16,22 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
+
+defineSlots<{ default?: () => unknown; header?: () => unknown; footer?: () => unknown }>()
 
 const props = defineProps({
   variant: {
     type: String,
     default: 'default',
-    validator: (value) => ['default', 'elevated', 'outlined', 'glass'].includes(value)
+    validator: (value: string) => ['default', 'elevated', 'outlined', 'glass'].includes(value)
   },
   title: String,
   padding: {
     type: String,
     default: 'md',
-    validator: (value) => ['none', 'sm', 'md', 'lg'].includes(value)
+    validator: (value: string) => ['none', 'sm', 'md', 'lg'].includes(value)
   },
   hoverable: Boolean,
 })
@@ -37,7 +39,7 @@ const props = defineProps({
 const cardClasses = computed(() => {
   const base = 'rounded-2xl transition-all duration-200'
   
-  const variants = {
+  const variants: Record<string, string> = {
     default: 'bg-white shadow-md',
     elevated: 'bg-white shadow-xl',
     outlined: 'bg-white border-2 border-navy-200',
@@ -50,7 +52,7 @@ const cardClasses = computed(() => {
 })
 
 const bodyClasses = computed(() => {
-  const paddings = {
+  const paddings: Record<string, string> = {
     none: '',
     sm: 'p-3',
     md: 'p-4',

@@ -247,12 +247,13 @@ class LeaderboardTest extends TestCase
         $this->assertSame(0.30, (float) $row['total_cost']);
     }
 
-    public function test_admins_are_excluded_from_leaderboard(): void
+    public function test_users_can_be_excluded_from_leaderboard_for_a_season(): void
     {
         $season = $this->makeSeason();
         $team = $this->makeTeam();
 
         $admin = $this->makeUser(['is_admin' => true, 'name' => 'Admin']);
+        $admin->seasons()->attach($season->id, ['exclude_from_leaderboard' => true]);
         $user = $this->makeUser(['is_admin' => false, 'name' => 'User']);
 
         $game = $this->makeFinishedGame($season, $team);
