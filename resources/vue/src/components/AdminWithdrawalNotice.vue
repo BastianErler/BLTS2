@@ -12,7 +12,7 @@ const route = useRoute();
 const count = ref(0);
 watch(() => route.name, async () => {
     count.value = 0;
-    if (route.name === 'login' || !localStorage.getItem('auth_token')) return;
+    if (route.name === 'login') return;
     try {
         const me = await api.get('/me');
         if (me.data.is_admin) {

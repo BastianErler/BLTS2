@@ -37,13 +37,6 @@
             </form>
         </div>
 
-        <div class="glass-card p-4">
-            <div class="text-sm text-white/70">Dev-Hinweis</div>
-            <div class="text-sm text-white/80 mt-1">
-                Token wird in localStorage gespeichert und bei Requests als
-                <span class="font-mono">Authorization: Bearer</span> gesendet.
-            </div>
-        </div>
     </div>
 </template>
 
@@ -69,13 +62,7 @@ const submit = async () => {
     try {
         const res = await authApi.login(email.value, password.value);
 
-        // Erwartet: { token, user }
-        const token = (res.data as any).token;
-        if (!token) {
-            throw new Error("Login-Response enthält kein Token.");
-        }
-
-        localStorage.setItem("auth_token", token);
+        localStorage.removeItem("auth_token");
 
         // Optional: user speichern (für später)
         localStorage.setItem(

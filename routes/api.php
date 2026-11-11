@@ -39,7 +39,7 @@ Route::middleware('api')->group(function () {
     | Authenticated
     |--------------------------------------------------------------------------
     */
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware('auth:web')->group(function () {
         Route::get('/app-config', [AppConfigController::class, 'show']);
         Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware('throttle:20,1');
         Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware('throttle:20,1');
