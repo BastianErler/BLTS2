@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\BetController;
 use App\Http\Controllers\Api\GameController;
 use App\Http\Controllers\Api\LeaderboardController;
@@ -37,6 +38,7 @@ Route::middleware('api')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/app-config', [AppConfigController::class, 'show']);
 
         // Auth / User
         Route::controller(AuthController::class)->group(function () {

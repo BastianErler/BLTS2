@@ -29,14 +29,15 @@ class GameSyncController
 
     public function sync(Request $request): JsonResponse
     {
-        $seasonId = (int)($request->input('season_id', 1));
-
         $startedAt = microtime(true);
 
         try {
-            Artisan::call('games:sync');
+            $exitCode = Artisan::call('games:sync');
 
             $output = Artisan::output();
+            if ($exitCode !== 0) {
+                throw new \RuntimeException('Game sync failed: '.$output);
+            }
             $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
 
             $status = [
