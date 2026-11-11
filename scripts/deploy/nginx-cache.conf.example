@@ -1,0 +1,27 @@
+# Review and merge into the EXISTING Nginx server block; do not include blindly.
+# Keep the existing /assets/ immutable rule and API/Sanctum FastCGI settings.
+# Replace the existing SPA root and both SCRIPT_FILENAME values with paths
+# under the approved current symlink, then run nginx -t before reloading.
+# Apply equivalent Cloudflare Cache Rules: bypass /api/* and /sanctum/*;
+# bypass or revalidate these mutable files. Respect application cookies.
+
+location = /index.html {
+    try_files $uri =404;
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+}
+location = /sw.js {
+    try_files $uri =404;
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+}
+location = /registerSW.js {
+    try_files $uri =404;
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+}
+location = /manifest.webmanifest {
+    try_files $uri =404;
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+}
+location = /offline.html {
+    try_files $uri =404;
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+}

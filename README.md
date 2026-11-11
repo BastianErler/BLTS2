@@ -1,6 +1,7 @@
 # 🎯 Tippspiel - Vue SPA + Laravel API
 
 > Einrichtung, Prüfungen und Betrieb: siehe [docs/SETUP.md](docs/SETUP.md).
+> CI/CD, sichere Erstumstellung und Rollback: siehe [docs/deployment.md](docs/deployment.md).
 > Die untenstehende Übersicht enthält teilweise historische Beispielangaben.
 
 ## Architecture Overview
