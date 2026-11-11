@@ -17,10 +17,13 @@ class SeasonParticipationController extends Controller
     public function show(Request $request)
     {
         $season = Season::current();
-        if (! $season) return response()->json(['season' => null, 'participation' => null]);
+        if (! $season) {
+            return response()->json(['season' => null, 'participation' => null]);
+        }
 
         $participation = SeasonParticipation::where('season_id', $season->id)->where('user_id', $request->user()->id)->first();
         $finished = $season->games()->where('status', 'finished')->count();
+
         return response()->json(['season' => $season->only('id', 'name', 'start_date'), 'participation' => $participation, 'finished_games' => $finished]);
     }
 
@@ -40,6 +43,7 @@ class SeasonParticipationController extends Controller
             ['joined_at' => now()]
         );
         LeaderboardCache::forgetSeason($season->id);
+
         return response()->json($participation);
     }
 
@@ -48,8 +52,10 @@ class SeasonParticipationController extends Controller
         $season = Season::current();
         abort_unless($season, 404, 'No active season');
         $participation = SeasonParticipation::where('season_id', $season->id)->where('user_id', $request->user()->id)->whereNull('withdrawn_at')->firstOrFail();
-        if (! $participation->withdrawal_requested_at) {
-            $participation->update(['withdrawal_requested_at' => now()]);
+        $created = SeasonParticipation::whereKey($participation->id)
+            ->whereNull('withdrawn_at')->whereNull('withdrawal_requested_at')
+            ->update(['withdrawal_requested_at' => now()]);
+        if ($created) {
             foreach (User::where('is_admin', true)->get() as $admin) {
                 try {
                     app(PushSender::class)->sendToUser($admin, [
@@ -63,6 +69,7 @@ class SeasonParticipationController extends Controller
                 }
             }
         }
-        return response()->json($participation);
+
+        return response()->json($participation->fresh());
     }
 }

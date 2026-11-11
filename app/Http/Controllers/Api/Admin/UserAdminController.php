@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Season;
+use App\Models\SeasonParticipation;
 use App\Models\SeasonUserSetting;
 use App\Models\User;
-use App\Models\SeasonParticipation;
 use App\Support\LeaderboardCache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class UserAdminController extends Controller
 {
@@ -46,8 +46,10 @@ class UserAdminController extends Controller
             LeaderboardCache::forgetSeason($p->season_id);
             cache()->forget("leaderboard:v1:userstats:season:{$p->season_id}:user:{$p->user_id}");
         });
+
         return response()->json(['ok' => true]);
     }
+
     public function index(Request $request)
     {
         $seasonId = $request->integer('season_id');
@@ -59,11 +61,11 @@ class UserAdminController extends Controller
         $settings = SeasonUserSetting::query()
             ->when($seasonId, fn ($q) => $q->where('season_id', $seasonId))
             ->get()
-            ->keyBy(fn ($row) => $row->season_id . ':' . $row->user_id);
+            ->keyBy(fn ($row) => $row->season_id.':'.$row->user_id);
 
         return response()->json([
             'data' => $users->map(function (User $user) use ($settings, $seasonId) {
-                $setting = $seasonId ? $settings->get($seasonId . ':' . $user->id) : null;
+                $setting = $seasonId ? $settings->get($seasonId.':'.$user->id) : null;
 
                 return [
                     'id' => $user->id,
@@ -90,6 +92,7 @@ class UserAdminController extends Controller
             ['season_id' => $season->id, 'user_id' => $user->id],
             $data,
         );
+        LeaderboardCache::forgetSeason($season->id);
 
         return response()->json([
             'message' => 'Season user setting updated.',
