@@ -704,6 +704,7 @@ import {
     seasonsApi,
 } from "@/services/api";
 import { usePwaInstall } from "@/pwa/usePwaInstall";
+import api from "@/services/api";
 
 const { canInstall, init, triggerInstall } = usePwaInstall();
 const router = useRouter();
@@ -946,6 +947,21 @@ function goToLeaderboard() {
 }
 
 async function logout() {
+    try {
+        if ('serviceWorker' in navigator) {
+            const registration = await navigator.serviceWorker.getRegistration();
+            const subscription = await registration?.pushManager.getSubscription();
+            if (subscription) {
+                try {
+                    await api.delete('/push-subscriptions', { data: { endpoint: subscription.endpoint } });
+                } finally {
+                    await subscription.unsubscribe();
+                }
+            }
+        }
+    } catch {
+        // Logout must remain possible even if the push service is unavailable.
+    }
     try {
         await authApi.logout();
     } finally {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PushSubscription;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PushSubscriptionController extends Controller
 {
@@ -28,19 +29,22 @@ class PushSubscriptionController extends Controller
 
         $user = $request->user();
 
-        PushSubscription::updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'endpoint' => $request->endpoint,
-            ],
-            [
-                'p256dh' => $request->input('keys.p256dh'),
-                'auth' => $request->input('keys.auth'),
-                'content_encoding' => $request->input('contentEncoding', 'aes128gcm'),
-                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
-                'device' => $request->input('device'),
-            ]
-        );
+        DB::transaction(function () use ($request, $user) {
+            PushSubscription::where('endpoint', $request->endpoint)->where('user_id', '!=', $user->id)->delete();
+            PushSubscription::updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'endpoint' => $request->endpoint,
+                ],
+                [
+                    'p256dh' => $request->input('keys.p256dh'),
+                    'auth' => $request->input('keys.auth'),
+                    'content_encoding' => $request->input('contentEncoding', 'aes128gcm'),
+                    'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                    'device' => $request->input('device'),
+                ]
+            );
+        });
 
         return response()->json(['ok' => true]);
     }

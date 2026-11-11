@@ -73,6 +73,7 @@ class NotificationsDeadlineCommandTest extends TestCase
                 'remind_before_deadline_minutes' => $minutes,
             ],
         ]);
+        \App\Models\SeasonParticipation::create(['user_id' => $user->id, 'season_id' => $season->id, 'joined_at' => now()]);
 
         $this->artisan('notifications:deadline', [
             '--dry-run' => true,

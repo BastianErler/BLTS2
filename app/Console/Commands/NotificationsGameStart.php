@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Game;
+use App\Models\SeasonParticipation;
 use App\Models\User;
 use App\Services\NotificationDeduper;
 use App\Services\PushSender;
@@ -33,6 +34,7 @@ class NotificationsGameStart extends Command
 
         if ($games->isEmpty()) {
             $this->line('No games in window.');
+
             return self::SUCCESS;
         }
 
@@ -44,12 +46,15 @@ class NotificationsGameStart extends Command
 
         foreach ($games as $game) {
             foreach ($users as $user) {
-                $settings = $user->mergedNotificationSettings();
-
-                if (!($settings['push_enabled'] ?? false)) {
+                if (! SeasonParticipation::where('user_id', $user->id)->where('season_id', $game->season_id)->whereNull('withdrawn_at')->exists()) {
                     continue;
                 }
-                if (!($settings['remind_on_game_start_if_no_bet'] ?? true)) {
+                $settings = $user->mergedNotificationSettings();
+
+                if (! ($settings['push_enabled'] ?? false)) {
+                    continue;
+                }
+                if (! ($settings['remind_on_game_start_if_no_bet'] ?? true)) {
                     continue;
                 }
 
@@ -67,19 +72,20 @@ class NotificationsGameStart extends Command
                     'g' => $game->id,
                 ]);
 
-                if (!$deduper->shouldSend($dedupeKey, 6 * 3600)) {
+                if (! $deduper->shouldSend($dedupeKey, 6 * 3600)) {
                     continue;
                 }
 
                 $payload = [
                     'title' => 'BLUELINER BERLIN',
                     'body' => 'Spiel startet – du hast noch keinen Tipp abgegeben.',
-                    'url' => "/games/{$game->id}",
+                    'url' => '/games',
                     'tag' => "game-start-{$game->id}",
                 ];
 
                 if ($dry) {
                     $this->line("DRY game-start u#{$user->id} g#{$game->id}");
+
                     continue;
                 }
 
@@ -90,7 +96,8 @@ class NotificationsGameStart extends Command
             }
         }
 
-        $this->info("Game-start done. Users notified: {$sentUsers}" . ($dry ? ' (dry-run)' : ''));
+        $this->info("Game-start done. Users notified: {$sentUsers}".($dry ? ' (dry-run)' : ''));
+
         return self::SUCCESS;
     }
 }

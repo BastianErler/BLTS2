@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Game;
+use App\Models\SeasonParticipation;
 use App\Models\User;
 use App\Services\NotificationDeduper;
 use App\Services\PushSender;
@@ -26,8 +27,9 @@ class NotificationsDeadline extends Command
         $window = (int) $this->option('window');
         $dry = (bool) $this->option('dry-run');
 
-        if (!in_array($minutes, [30, 60, 120], true)) {
+        if (! in_array($minutes, [30, 60, 120], true)) {
             $this->error('minutes must be one of 30/60/120');
+
             return self::FAILURE;
         }
 
@@ -54,6 +56,7 @@ class NotificationsDeadline extends Command
 
         if ($games->isEmpty()) {
             $this->line('No games in window.');
+
             return self::SUCCESS;
         }
 
@@ -68,18 +71,29 @@ class NotificationsDeadline extends Command
             $deadlineAt = $game->betDeadline() ?? $kickoffAt->copy()->subHours(self::DEADLINE_HOURS_BEFORE_KICKOFF);
 
             foreach ($users as $user) {
+                if (! SeasonParticipation::where('user_id', $user->id)->where('season_id', $game->season_id)->whereNull('withdrawn_at')->exists()) {
+                    continue;
+                }
                 $settings = $user->mergedNotificationSettings();
 
-                if (!($settings['push_enabled'] ?? false)) continue;
-                if (!($settings['remind_before_deadline'] ?? true)) continue;
-                if ((int) ($settings['remind_before_deadline_minutes'] ?? 120) !== $minutes) continue;
+                if (! ($settings['push_enabled'] ?? false)) {
+                    continue;
+                }
+                if (! ($settings['remind_before_deadline'] ?? true)) {
+                    continue;
+                }
+                if ((int) ($settings['remind_before_deadline_minutes'] ?? 120) !== $minutes) {
+                    continue;
+                }
 
                 // Only if user has NOT bet yet
                 $hasBet = $user->bets()
                     ->where('game_id', $game->id)
                     ->exists();
 
-                if ($hasBet) continue;
+                if ($hasBet) {
+                    continue;
+                }
 
                 $dedupeKey = $deduper->key('deadline', [
                     'u' => $user->id,
@@ -90,26 +104,32 @@ class NotificationsDeadline extends Command
                 // TTL: until deadline + 2h (not kickoff)
                 $ttl = max(3600, ($deadlineAt->timestamp + 2 * 3600) - $now->timestamp);
 
-                if (!$deduper->shouldSend($dedupeKey, $ttl)) continue;
+                if (! $deduper->shouldSend($dedupeKey, $ttl)) {
+                    continue;
+                }
 
                 $payload = [
                     'title' => 'BLUELINER BERLIN',
                     'body' => "Noch {$minutes} Min bis Tipp-Sperre – du hast noch keinen Tipp abgegeben.",
-                    'url' => "/games/{$game->id}",
+                    'url' => '/games',
                     'tag' => "deadline-{$game->id}-{$minutes}",
                 ];
 
                 if ($dry) {
                     $this->line("DRY deadline u#{$user->id} g#{$game->id} ({$minutes}m) deadline={$deadlineAt->toIso8601String()}");
+
                     continue;
                 }
 
                 $res = $sender->sendToUser($user, $payload);
-                if (($res['sent'] ?? 0) > 0) $sentUsers++;
+                if (($res['sent'] ?? 0) > 0) {
+                    $sentUsers++;
+                }
             }
         }
 
-        $this->info("Deadline done. Users notified: {$sentUsers}" . ($dry ? ' (dry-run)' : ''));
+        $this->info("Deadline done. Users notified: {$sentUsers}".($dry ? ' (dry-run)' : ''));
+
         return self::SUCCESS;
     }
 }
