@@ -26,6 +26,7 @@ class BetTest extends TestCase
     {
         $user = User::factory()->create();
         $season = Season::factory()->create(['is_active' => true]);
+        \App\Models\SeasonParticipation::create(['user_id' => $user->id, 'season_id' => $season->id, 'joined_at' => now()]);
         $opponent = Team::where('name', '!=', 'Eisbären Berlin')->first();
 
         $game = Game::factory()->create([
@@ -267,6 +268,7 @@ class BetTest extends TestCase
     {
         $user = User::factory()->create(['jokers_remaining' => 3]);
         $season = Season::factory()->create(['is_active' => true]);
+        \App\Models\SeasonParticipation::create(['user_id' => $user->id, 'season_id' => $season->id, 'joined_at' => now()]);
         $opponent = Team::where('name', '!=', 'Eisbären Berlin')->first();
 
         $game = Game::factory()->create([

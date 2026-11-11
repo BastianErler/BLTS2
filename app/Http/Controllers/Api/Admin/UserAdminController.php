@@ -44,6 +44,7 @@ class UserAdminController extends Controller
             $p->withdrawal_requested_at = null;
             $p->save();
             LeaderboardCache::forgetSeason($p->season_id);
+            cache()->forget("leaderboard:v1:userstats:season:{$p->season_id}:user:{$p->user_id}");
         });
         return response()->json(['ok' => true]);
     }
