@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\PushSubscriptionController;
+use App\Http\Controllers\Api\SeasonParticipationController;
 use App\Http\Controllers\Api\BetController;
 use App\Http\Controllers\Api\GameController;
 use App\Http\Controllers\Api\LeaderboardController;
@@ -42,6 +43,9 @@ Route::middleware('api')->group(function () {
         Route::get('/app-config', [AppConfigController::class, 'show']);
         Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware('throttle:20,1');
         Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware('throttle:20,1');
+        Route::get('/season-participation', [SeasonParticipationController::class, 'show']);
+        Route::post('/season-participation', [SeasonParticipationController::class, 'join']);
+        Route::post('/season-participation/withdrawal', [SeasonParticipationController::class, 'requestWithdrawal']);
 
         // Auth / User
         Route::controller(AuthController::class)->group(function () {
@@ -107,6 +111,8 @@ Route::middleware('api')->group(function () {
 
                 // Admin User Management
                 Route::controller(UserAdminController::class)->group(function () {
+                    Route::get('/withdrawal-requests', 'withdrawalRequests');
+                    Route::post('/withdrawal-requests/{participation}', 'resolveWithdrawal');
                     Route::get('/users', 'index');
                     Route::put('/users/{user}/seasons/{season}', 'updateSeasonSetting');
                 });

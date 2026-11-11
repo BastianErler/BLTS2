@@ -71,17 +71,21 @@ class LeaderboardService
             return [];
         }
 
-        $rows = DB::table('users')
-            ->join('bets', 'bets.user_id', '=', 'users.id')
-            ->join('games', function ($join) use ($season, $cutoff) {
-                $join->on('games.id', '=', 'bets.game_id')
-                    ->where('games.season_id', '=', $season->id)
-                    ->where('games.status', '=', 'finished');
+        $completedBets = DB::table('bets')
+            ->join('games', 'games.id', '=', 'bets.game_id')
+            ->where('games.season_id', $season->id)
+            ->where('games.status', 'finished')
+            ->when($cutoff, fn ($q) => $q->where('games.kickoff_at', '<=', $cutoff))
+            ->groupBy('bets.user_id')
+            ->selectRaw('bets.user_id, SUM(bets.final_price) as submitted_cost, COUNT(*) as bet_count, SUM(CASE WHEN bets.base_price = 0 THEN 1 ELSE 0 END) as exact_bets');
 
-                if ($cutoff) {
-                    $join->where('games.kickoff_at', '<=', $cutoff);
-                }
+        $rows = DB::table('users')
+            ->join('season_participations as participation', function ($join) use ($season) {
+                $join->on('participation.user_id', '=', 'users.id')
+                    ->where('participation.season_id', '=', $season->id)
+                    ->whereNull('participation.withdrawn_at');
             })
+            ->leftJoinSub($completedBets, 'completed', 'completed.user_id', '=', 'users.id')
             ->leftJoin('season_user_settings as sus', function ($join) use ($season) {
                 $join->on('sus.user_id', '=', 'users.id')
                     ->where('sus.season_id', '=', $season->id);
@@ -90,16 +94,13 @@ class LeaderboardService
                 $query->whereNull('sus.exclude_from_leaderboard')
                     ->orWhere('sus.exclude_from_leaderboard', false);
             })
-            ->groupBy('users.id', 'users.name', 'users.jokers_remaining')
             ->selectRaw('
                 users.id,
                 users.name,
                 users.jokers_remaining,
-                COALESCE(ROUND(SUM(bets.final_price), 2), 0) as submitted_cost,
-                COUNT(games.id) as bet_count,
-                COALESCE(SUM(
-                    CASE WHEN bets.base_price = 0.00 THEN 1 ELSE 0 END
-                ), 0) as exact_bets
+                COALESCE(completed.submitted_cost, 0) as submitted_cost,
+                COALESCE(completed.bet_count, 0) as bet_count,
+                COALESCE(completed.exact_bets, 0) as exact_bets
             ')
             ->get();
 
