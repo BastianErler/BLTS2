@@ -7,8 +7,10 @@ use App\Http\Requests\StoreBetRequest;
 use App\Http\Resources\BetResource;
 use App\Models\Bet;
 use App\Models\Game;
+use App\Models\SeasonParticipation;
 use App\Services\PlaceBet;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class BetController extends Controller
@@ -41,28 +43,33 @@ class BetController extends Controller
      */
     public function update(StoreBetRequest $request, Bet $bet)
     {
-        Gate::authorize('update', $bet);
+        return DB::transaction(function () use ($request, $bet) {
+            $bet = Bet::whereKey($bet->id)->lockForUpdate()->firstOrFail();
+            $bet->setRelation('game', Game::whereKey($bet->game_id)->lockForUpdate()->firstOrFail());
+            SeasonParticipation::where('user_id', $bet->user_id)->where('season_id', $bet->game->season_id)->lockForUpdate()->first();
+            Gate::authorize('update', $bet);
 
-        // Check if bet is locked
-        if ($bet->locked_at) {
-            return response()->json([
-                'message' => 'Bet is locked and cannot be changed'
-            ], 422);
-        }
+            // Check if bet is locked
+            if ($bet->locked_at) {
+                return response()->json([
+                    'message' => 'Bet is locked and cannot be changed',
+                ], 422);
+            }
 
-        // Check if game betting is still open
-        if (!$bet->game->canBet()) {
-            return response()->json([
-                'message' => 'Betting is closed for this game'
-            ], 422);
-        }
+            // Check if game betting is still open
+            if (! $bet->game->canBet()) {
+                return response()->json([
+                    'message' => 'Betting is closed for this game',
+                ], 422);
+            }
 
-        $bet->update([
-            'eisbaeren_goals' => $request->eisbaeren_goals,
-            'opponent_goals' => $request->opponent_goals,
-        ]);
+            $bet->update([
+                'eisbaeren_goals' => $request->eisbaeren_goals,
+                'opponent_goals' => $request->opponent_goals,
+            ]);
 
-        return new BetResource($bet->load('game.opponent'));
+            return new BetResource($bet->load('game.opponent'));
+        });
     }
 
     /**
@@ -70,25 +77,30 @@ class BetController extends Controller
      */
     public function destroy(Bet $bet, Request $request)
     {
-        Gate::authorize('delete', $bet);
+        return DB::transaction(function () use ($bet) {
+            $bet = Bet::whereKey($bet->id)->lockForUpdate()->firstOrFail();
+            $bet->setRelation('game', Game::whereKey($bet->game_id)->lockForUpdate()->firstOrFail());
+            SeasonParticipation::where('user_id', $bet->user_id)->where('season_id', $bet->game->season_id)->lockForUpdate()->first();
+            Gate::authorize('delete', $bet);
 
-        // Check if bet is locked
-        if ($bet->locked_at) {
-            return response()->json([
-                'message' => 'Bet is locked and cannot be deleted'
-            ], 422);
-        }
+            // Check if bet is locked
+            if ($bet->locked_at) {
+                return response()->json([
+                    'message' => 'Bet is locked and cannot be deleted',
+                ], 422);
+            }
 
-        // Check if game betting is still open
-        if (!$bet->game->canBet()) {
-            return response()->json([
-                'message' => 'Betting is closed for this game'
-            ], 422);
-        }
+            // Check if game betting is still open
+            if (! $bet->game->canBet()) {
+                return response()->json([
+                    'message' => 'Betting is closed for this game',
+                ], 422);
+            }
 
-        $bet->delete();
+            $bet->delete();
 
-        return response()->json(['message' => 'Bet deleted successfully']);
+            return response()->json(['message' => 'Bet deleted successfully']);
+        });
     }
 
     /**
@@ -99,7 +111,7 @@ class BetController extends Controller
         // Only show other users' bets after game started
         if ($game->canBet()) {
             return response()->json([
-                'message' => 'Bets will be visible after game starts'
+                'message' => 'Bets will be visible after game starts',
             ], 422);
         }
 
