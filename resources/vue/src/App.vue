@@ -1,5 +1,7 @@
 <template>
     <AppLayout :user="user ?? undefined">
+        <AdminWithdrawalNotice />
+        <SeasonParticipation />
         <RouterView />
     </AppLayout>
 </template>
@@ -8,6 +10,8 @@
 import { onMounted, ref } from "vue";
 import { RouterView } from "vue-router";
 import AppLayout from "@/components/AppLayout.vue";
+import SeasonParticipation from "@/components/SeasonParticipation.vue";
+import AdminWithdrawalNotice from "@/components/AdminWithdrawalNotice.vue";
 import { authApi } from "@/services/api";
 
 type AppUser = {
