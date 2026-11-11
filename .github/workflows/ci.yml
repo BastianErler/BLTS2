@@ -1,16 +1,49 @@
-name: CI
+name: CI and deployment
+
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deployment, Cloudflare purge, or code rollback
+        type: choice
+        required: true
+        default: deploy
+        options: [deploy, purge, rollback]
+      rollback_sha:
+        description: Full SHA of an existing compatible release, for rollback only
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
 jobs:
-  checks:
+  build:
+    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: test-only-root
+          MARIADB_DATABASE: blts_test
+          MARIADB_USER: blts_test
+          MARIADB_PASSWORD: test-only-password
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          extensions: bcmath, gmp, sqlite3, mbstring, dom
+          php-version: '8.2'
+          extensions: bcmath, curl, dom, gmp, intl, mbstring, pdo_mysql, pdo_sqlite, zip
           tools: composer:v2
       - uses: actions/setup-node@v4
         with:
@@ -18,7 +51,128 @@ jobs:
           cache: npm
       - run: composer install --no-interaction --prefer-dist
       - run: cp .env.example .env && php artisan key:generate
-      - run: php artisan test
+      - name: SQLite tests
+        run: php artisan test
+      - name: MariaDB tests
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_DATABASE: blts_test
+          DB_USERNAME: blts_test
+          DB_PASSWORD: test-only-password
+        run: php artisan test
       - run: npm ci
       - run: npm run typecheck
-      - run: npm run build
+      - name: Production frontend build
+        env:
+          VITE_API_URL: /api
+        run: npm run build
+      - name: Validate deployment scripts
+        run: |
+          bash -n scripts/deploy/*.sh
+          python3 -m py_compile scripts/deploy/purge_cloudflare.py
+          python3 tests/deployment/test_purge.py
+          bash tests/deployment/release-test.sh
+      - name: Package this exact commit and production dependencies
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/blts-release"
+          mkdir -p "$stage"
+          git archive "$GITHUB_SHA" app bootstrap config database public resources routes scripts artisan composer.json composer.lock | tar -x -C "$stage"
+          rm -rf "$stage/resources/vue/dist"
+          cp -a resources/vue/dist "$stage/resources/vue/dist"
+          printf '%s\n' "$GITHUB_SHA" > "$stage/RELEASE_SHA"
+          sha256sum "$stage/resources/vue/dist/index.html" | cut -d ' ' -f1 > "$stage/FRONTEND_SHA"
+          (cd "$stage" && composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader)
+          (cd "$stage" && composer check-platform-reqs --no-dev --no-interaction && APP_ENV=testing php artisan route:list --path=api/deployment-health --no-ansi)
+          tar -czf "$RUNNER_TEMP/blts-release.tar.gz" -C "$stage" .
+          (cd "$RUNNER_TEMP" && sha256sum blts-release.tar.gz > blts-release.sha256)
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: blts-release-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/blts-release.tar.gz
+            ${{ runner.temp }}/blts-release.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  production:
+    needs: build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy')) && vars.BLTS_DEPLOY_ENABLED == 'true'
+    runs-on: [self-hosted, linux, x64, blts-production]
+    environment: production
+    concurrency:
+      group: blts-production
+      cancel-in-progress: false
+    env:
+      DEPLOY_ROOT: ${{ vars.BLTS_DEPLOY_ROOT }}
+      ORIGIN_URL: ${{ vars.BLTS_ORIGIN_URL }}
+      HOST_HEADER: ${{ vars.BLTS_HOST_HEADER }}
+      PUBLIC_URL: ${{ vars.BLTS_PUBLIC_URL }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: blts-release-${{ github.sha }}
+          path: ${{ runner.temp }}/blts-artifact
+      - name: Check deployment prerequisites
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: bash scripts/deploy/preflight.sh
+      - name: Verify and deploy checked artifact
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          ARTIFACT: ${{ runner.temp }}/blts-artifact/blts-release.tar.gz
+        run: |
+          set -euo pipefail
+          (cd "$RUNNER_TEMP/blts-artifact" && sha256sum -c blts-release.sha256)
+          bash scripts/deploy/release.sh
+      - name: Purge Cloudflare mutable files
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 scripts/deploy/purge_cloudflare.py
+      - name: Verify public release and database health
+        run: |
+          EXPECTED_SHA=$(cat "$DEPLOY_ROOT/current/RELEASE_SHA")
+          EXPECTED_FRONTEND_SHA=$(cat "$DEPLOY_ROOT/current/FRONTEND_SHA")
+          export EXPECTED_SHA EXPECTED_FRONTEND_SHA
+          BASE_URL="$PUBLIC_URL" HOST_HEADER='' bash scripts/deploy/check.sh
+
+  maintenance:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && (inputs.operation == 'purge' || inputs.operation == 'rollback') && vars.BLTS_DEPLOY_ENABLED == 'true'
+    runs-on: [self-hosted, linux, x64, blts-production]
+    environment: production
+    concurrency:
+      group: blts-production
+      cancel-in-progress: false
+    env:
+      DEPLOY_ROOT: ${{ vars.BLTS_DEPLOY_ROOT }}
+      ORIGIN_URL: ${{ vars.BLTS_ORIGIN_URL }}
+      HOST_HEADER: ${{ vars.BLTS_HOST_HEADER }}
+      PUBLIC_URL: ${{ vars.BLTS_PUBLIC_URL }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Roll back code only
+        if: inputs.operation == 'rollback'
+        env:
+          ROLLBACK_SHA: ${{ inputs.rollback_sha }}
+        run: bash scripts/deploy/rollback.sh
+      - name: Purge Cloudflare mutable files
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 scripts/deploy/purge_cloudflare.py
+      - name: Verify public release and database health
+        run: |
+          EXPECTED_SHA=$(cat "$DEPLOY_ROOT/current/RELEASE_SHA")
+          EXPECTED_FRONTEND_SHA=$(cat "$DEPLOY_ROOT/current/FRONTEND_SHA")
+          export EXPECTED_SHA EXPECTED_FRONTEND_SHA
+          BASE_URL="$PUBLIC_URL" HOST_HEADER='' bash scripts/deploy/check.sh
