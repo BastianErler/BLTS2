@@ -28,7 +28,7 @@ Route::middleware('api')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::controller(AuthController::class)->group(function () {
-        Route::post('/login', 'login');
+        Route::post('/login', 'login')->middleware('throttle:5,1');
     });
 
     /*
