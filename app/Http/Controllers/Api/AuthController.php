@@ -100,7 +100,7 @@ class AuthController extends Controller
      */
     public function me(Request $request)
     {
-        $user = $request->user()->load('bets');
+        $user = $request->user()->loadCount('bets');
 
         return response()->json([
             'id' => $user->id,
@@ -113,7 +113,7 @@ class AuthController extends Controller
             'jokers_used' => $user->jokers_used ?? [],
             'wants_email_reminder' => $user->wants_email_reminder,
             'wants_sms_reminder' => $user->wants_sms_reminder,
-            'bet_count' => $user->bets->count(),
+            'bet_count' => $user->bets_count,
         ]);
     }
 
