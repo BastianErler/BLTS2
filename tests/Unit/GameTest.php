@@ -15,7 +15,7 @@ class GameTest extends TestCase
     private function makeSeason(): Season
     {
         return Season::create([
-            'name' => 'Saison 25/26',
+            'name' => '25/26',
             'is_active' => true,
             'start_date' => now()->subMonth()->toDateString(),
             'end_date' => null,

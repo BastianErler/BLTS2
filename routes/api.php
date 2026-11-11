@@ -16,12 +16,23 @@ use App\Http\Controllers\Api\Admin\GameReviewController;
 use App\Http\Controllers\Api\Admin\GameSyncController;
 use App\Http\Controllers\Api\Admin\GameAdminController;
 use App\Http\Controllers\Api\Admin\UserAdminController;
+use Illuminate\Support\Facades\DB;
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
 */
+
+Route::get('/deployment-health', function () {
+    try {
+        DB::select('SELECT 1');
+        $sha = is_file(base_path('RELEASE_SHA')) ? trim(file_get_contents(base_path('RELEASE_SHA'))) : null;
+        return response()->json(['status' => 'ok', 'release' => $sha], 200, ['Cache-Control' => 'no-store, private']);
+    } catch (\Throwable $e) {
+        return response()->json(['status' => 'unavailable'], 503, ['Cache-Control' => 'no-store, private']);
+    }
+});
 
 Route::middleware('api')->group(function () {
 

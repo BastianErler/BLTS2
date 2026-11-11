@@ -15,7 +15,7 @@ class SyncGameStatusesCommandTest extends TestCase
     public function test_it_updates_scheduled_past_game_to_live(): void
     {
         $season = Season::create([
-            'name' => 'Saison 25/26',
+            'name' => '25/26',
             'is_active' => true,
             'start_date' => now()->subMonth()->toDateString(),
             'end_date' => null,

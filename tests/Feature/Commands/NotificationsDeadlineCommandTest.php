@@ -23,7 +23,7 @@ class NotificationsDeadlineCommandTest extends TestCase
         $this->app->instance(PushSender::class, $mock);
 
         $season = Season::create([
-            'name' => 'Saison 25/26',
+            'name' => '25/26',
             'is_active' => true,
             'start_date' => now()->subMonth()->toDateString(),
             'end_date' => null,
