@@ -51,9 +51,10 @@
                 <Toggle
                     :model-value="form.push_enabled"
                     :disabled="!pushSupported"
-                    @update:model-value="(v) => onChange('push_enabled', v)"
+                    @update:model-value="setPushEnabled"
                 />
             </div>
+            <p v-if="pushError" class="mt-3 text-sm text-rose-300" role="alert">{{ pushError }}</p>
         </section>
 
         <!-- Erinnerungen -->
@@ -217,6 +218,9 @@ import {
     notificationSettingsApi,
     type NotificationSettings,
 } from "@/services/api";
+import api from "@/services/api";
+import { appConfigApi } from "@/services/appConfigApi";
+import { urlBase64ToUint8Array } from "@/pwa/push";
 
 const router = useRouter();
 
@@ -266,7 +270,35 @@ const Toggle = defineComponent({
     },
 });
 
-const pushSupported = "Notification" in window;
+const pushSupported = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window && window.isSecureContext;
+const pushError = ref<string | null>(null);
+
+async function setPushEnabled(enabled: boolean) {
+    pushError.value = null;
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        let subscription = await registration.pushManager.getSubscription();
+        if (enabled) {
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') throw new Error('Die Push-Berechtigung wurde nicht erteilt.');
+            const config = await appConfigApi.get();
+            const key = config.pwa?.vapid_public_key;
+            if (!key) throw new Error('Web-Push ist auf dem Server nicht konfiguriert.');
+            subscription ??= await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(key) as BufferSource,
+            });
+            await api.post('/push-subscriptions', { ...subscription.toJSON(), contentEncoding: 'aes128gcm' });
+        } else if (subscription) {
+            await api.delete('/push-subscriptions', { data: { endpoint: subscription.endpoint } });
+            await subscription.unsubscribe();
+        }
+        await notificationSettingsApi.update({ push_enabled: enabled });
+        form.push_enabled = enabled;
+    } catch (error) {
+        pushError.value = error instanceof Error ? error.message : 'Push konnte nicht eingerichtet werden.';
+    }
+}
 
 const form = reactive<NotificationSettings>({
     push_enabled: false,
