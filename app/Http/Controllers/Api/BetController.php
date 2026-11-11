@@ -7,6 +7,7 @@ use App\Http\Requests\StoreBetRequest;
 use App\Http\Resources\BetResource;
 use App\Models\Bet;
 use App\Models\Game;
+use App\Services\PlaceBet;
 use Illuminate\Http\Request;
 
 class BetController extends Controller
@@ -27,48 +28,9 @@ class BetController extends Controller
     /**
      * Place a bet
      */
-    public function store(StoreBetRequest $request)
+    public function store(StoreBetRequest $request, PlaceBet $placeBet)
     {
-        $game = Game::findOrFail($request->game_id);
-
-        // Check if betting is still allowed
-        if (!$game->canBet()) {
-            return response()->json([
-                'message' => 'Betting is closed for this game'
-            ], 422);
-        }
-
-        // Check if user already bet on this game
-        $existingBet = Bet::where('user_id', $request->user()->id)
-            ->where('game_id', $game->id)
-            ->first();
-
-        if ($existingBet) {
-            return response()->json([
-                'message' => 'You already placed a bet on this game'
-            ], 422);
-        }
-
-        // Check if user has enough jokers
-        if ($request->joker_type && $request->user()->jokers_remaining <= 0) {
-            return response()->json([
-                'message' => 'No jokers remaining'
-            ], 422);
-        }
-
-        // Create bet
-        $bet = Bet::create([
-            'user_id' => $request->user()->id,
-            'game_id' => $game->id,
-            'eisbaeren_goals' => $request->eisbaeren_goals,
-            'opponent_goals' => $request->opponent_goals,
-            'joker_type' => $request->joker_type,
-        ]);
-
-        // Use joker if specified
-        if ($request->joker_type) {
-            $request->user()->useJoker($request->joker_type, $bet);
-        }
+        $bet = $placeBet($request->user(), $request->validated());
 
         return new BetResource($bet->load('game.opponent'));
     }
