@@ -16,10 +16,10 @@ für andere lokale Benutzer lesbar (`0644`) und sollte bei der gesondert
 freizugebenden Einrichtung restriktiver abgesichert werden. Kein Laravel-Queue-Prozess und
 kein Laravel-Croneintrag wurden gefunden; Cron selbst läuft. Diese Beobachtungen
 sind eine Momentaufnahme, kein Beweis, dass keine externen Jobs existieren.
-Der Runner hat bereits einen passwortlosen sudo-Eintrag für `systemctl reload nginx`
-und allgemeine sudo-Berechtigung mit Passwort. Für das vorgesehene FPM-Reload
-besteht bisher kein passwortloser Eintrag; bestehende Runner-Rechte sollten bei der
-Freigabe auf das tatsächlich Notwendige reduziert werden.
+Vor der Erstumstellung hatte der Runner einen passwortlosen sudo-Eintrag für
+`systemctl reload nginx` und allgemeine sudo-Berechtigung mit Passwort, aber noch
+kein passwortloses Recht für FPM-Reload. Die weiter bestehenden Runner-Rechte
+sollten bei der nächsten Freigabe auf das tatsächlich Notwendige reduziert werden.
 
 `cloudflared` läuft als tokenverwalteter Tunnel; ob genau dieser Tunnel die
 öffentliche Route bedient, muss in Cloudflare verifiziert werden. Die öffentliche
