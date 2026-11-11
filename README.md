@@ -1,5 +1,8 @@
 # 🎯 Tippspiel - Vue SPA + Laravel API
 
+> Einrichtung, Prüfungen und Betrieb: siehe [docs/SETUP.md](docs/SETUP.md).
+> Die untenstehende Übersicht enthält teilweise historische Beispielangaben.
+
 ## Architecture Overview
 
 ```
@@ -16,8 +19,9 @@
 ## Quick Start
 
 ```bash
-# 1. Install Vue + API setup
-bash setup-vue-api.sh
+# 1. Install dependencies and configure .env (see docs/SETUP.md)
+composer install
+npm ci
 
 # 2. Start Laravel API
 php artisan serve
