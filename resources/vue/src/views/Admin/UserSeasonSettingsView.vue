@@ -1,5 +1,15 @@
 <template>
   <div class="space-y-4">
+    <section v-if="requests.length" class="rounded-xl border border-amber-400/30 bg-navy-800 p-4">
+      <h2 class="font-semibold text-white">Offene Abmeldeanfragen ({{ requests.length }})</h2>
+      <div v-for="request in requests" :key="request.id" class="mt-3 text-sm text-white">
+        <p>{{ request.name }} · {{ request.season_name }}</p>
+        <div class="flex gap-2 mt-2">
+          <button class="btn-secondary" @click="resolveRequest(request.id, true)">Abmeldung bestätigen</button>
+          <button class="btn-secondary" @click="resolveRequest(request.id, false)">Ablehnen</button>
+        </div>
+      </div>
+    </section>
     <section class="rounded-[28px] border border-white/10 bg-navy-800/70 p-4 backdrop-blur-md">
       <div class="flex items-center justify-between gap-3">
         <div>
@@ -31,6 +41,17 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { adminApi, seasonsApi, type AdminUserRow } from '@/services/api';
+import api from '@/services/api';
+const requests = ref<{id: number; name: string; season_name: string}[]>([]);
+async function loadRequests() {
+  const { data } = await api.get('/admin/withdrawal-requests');
+  requests.value = data.data;
+}
+async function resolveRequest(id: number, approve: boolean) {
+  if (!window.confirm(approve ? 'Abmeldung bestätigen?' : 'Anfrage ablehnen?')) return;
+  try { await api.post(`/admin/withdrawal-requests/${id}`, { approve }); await loadRequests(); }
+  catch { error.value = 'Anfrage konnte nicht bearbeitet werden.'; }
+}
 const users = ref<AdminUserRow[]>([]);
 const loading = ref(false);
 const saving = ref<Record<number, boolean>>({});
@@ -59,6 +80,7 @@ async function toggle(user: AdminUserRow, key: 'exclude_from_leaderboard' | 'fee
 }
 
 onMounted(async () => {
+  await loadRequests();
   const res = await seasonsApi.getAll();
   const seasons = (res as any)?.data?.data ?? [];
   const active = seasons.find((s: any) => s.is_active) ?? seasons[0];
