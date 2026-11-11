@@ -69,6 +69,10 @@ class LeaderboardTest extends TestCase
 
     private function placeBet(User $user, Game $game, float $basePrice, float $finalPrice): Bet
     {
+        \App\Models\SeasonParticipation::firstOrCreate(
+            ['user_id' => $user->id, 'season_id' => $game->season_id],
+            ['joined_at' => now()]
+        );
         return Bet::create([
             'user_id' => $user->id,
             'game_id' => $game->id,

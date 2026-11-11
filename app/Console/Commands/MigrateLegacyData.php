@@ -72,6 +72,22 @@ class MigrateLegacyData extends Command
             }
         }
 
+        if (! $dryRun && (! $only || $only === 'bets')) {
+            $participations = DB::table('bets')->join('games', 'games.id', '=', 'bets.game_id')
+                ->select('bets.user_id', 'games.season_id')
+                ->selectRaw('MIN(bets.created_at) as first_bet_at')
+                ->groupBy('bets.user_id', 'games.season_id')->get();
+            foreach ($participations as $participation) {
+                DB::table('season_participations')->insertOrIgnore([
+                    'user_id' => $participation->user_id,
+                    'season_id' => $participation->season_id,
+                    'joined_at' => $participation->first_bet_at ?? now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
         $this->newLine();
         $this->info('✅ Migration completed!');
 

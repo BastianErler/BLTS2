@@ -6,10 +6,47 @@ use App\Http\Controllers\Controller;
 use App\Models\Season;
 use App\Models\SeasonUserSetting;
 use App\Models\User;
+use App\Models\SeasonParticipation;
+use App\Support\LeaderboardCache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 
 class UserAdminController extends Controller
 {
+    public function withdrawalRequests()
+    {
+        return response()->json(['data' => DB::table('season_participations as p')
+            ->join('users as u', 'u.id', '=', 'p.user_id')
+            ->join('seasons as s', 's.id', '=', 'p.season_id')
+            ->whereNotNull('p.withdrawal_requested_at')->whereNull('p.withdrawn_at')
+            ->select('p.id', 'p.withdrawal_requested_at', 'u.name', 's.name as season_name')
+            ->orderBy('p.withdrawal_requested_at')->get()]);
+    }
+
+    public function resolveWithdrawal(Request $request, SeasonParticipation $participation)
+    {
+        $data = $request->validate(['approve' => ['required', 'boolean']]);
+        DB::transaction(function () use ($participation, $request, $data) {
+            $p = SeasonParticipation::whereKey($participation->id)->lockForUpdate()->firstOrFail();
+            abort_if(! $p->withdrawal_requested_at || $p->withdrawn_at, 409, 'No pending request');
+            if ($data['approve']) {
+                $games = DB::table('games')->where('season_id', $p->season_id)->where('status', 'finished');
+                $gameCount = (clone $games)->count();
+                $bets = DB::table('bets')->join('games', 'games.id', '=', 'bets.game_id')
+                    ->where('bets.user_id', $p->user_id)->where('games.season_id', $p->season_id)
+                    ->where('games.status', 'finished');
+                $betCount = (clone $bets)->count();
+                $cost = (float) (clone $bets)->sum('bets.final_price') + max(0, $gameCount - $betCount);
+                $p->withdrawn_at = now();
+                $p->withdrawn_by = $request->user()->id;
+                $p->frozen_cost = round($cost, 2);
+            }
+            $p->withdrawal_requested_at = null;
+            $p->save();
+            LeaderboardCache::forgetSeason($p->season_id);
+        });
+        return response()->json(['ok' => true]);
+    }
     public function index(Request $request)
     {
         $seasonId = $request->integer('season_id');
