@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Bet;
 use App\Models\Game;
 use App\Models\User;
+use App\Models\SeasonParticipation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -25,6 +26,10 @@ class PlaceBet
             $joker = $data['joker_type'] ?? null;
             if ($joker && $user->jokers_remaining <= 0) {
                 throw ValidationException::withMessages(['joker_type' => 'No jokers remaining']);
+            }
+            $participation = SeasonParticipation::where('season_id', $game->season_id)->where('user_id', $user->id)->lockForUpdate()->first();
+            if (! $participation || $participation->withdrawn_at) {
+                throw ValidationException::withMessages(['season' => 'Join the season before placing a bet.']);
             }
 
             $bet = Bet::create([

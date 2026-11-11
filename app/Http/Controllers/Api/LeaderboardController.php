@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Season;
 use App\Models\User;
+use App\Models\SeasonParticipation;
 use App\Services\LeaderboardService;
 use Illuminate\Http\Request;
 
@@ -75,7 +76,7 @@ class LeaderboardController extends Controller
      */
     public function userStats(Request $request, User $user = null, LeaderboardService $lb)
     {
-        $user = $user ?? $request->user();
+        $user = $user?->exists ? $user : $request->user();
 
         $seasonId = $request->integer('season_id');
         $season = $seasonId
@@ -90,6 +91,7 @@ class LeaderboardController extends Controller
         $cacheKey = "leaderboard:v1:userstats:season:{$season->id}:user:{$user->id}";
 
         $stats = cache()->remember($cacheKey, $ttlSeconds, function () use ($user, $season, $lb) {
+            $participation = SeasonParticipation::where('user_id', $user->id)->where('season_id', $season->id)->first();
             $bets = $user->bets()
                 ->whereHas('game', function ($q) use ($season) {
                     $q->where('season_id', $season->id)
@@ -111,7 +113,9 @@ class LeaderboardController extends Controller
                     'id' => $season->id,
                     'name' => $season->name,
                 ],
-                'total_cost' => round($bets->sum('final_price'), 2),
+                'total_cost' => $participation?->withdrawn_at
+                    ? (float) $participation->frozen_cost
+                    : round($bets->sum('final_price'), 2),
                 'bet_count' => $bets->count(),
                 'exact_bets' => $bets->where('base_price', 0.00)->count(),
                 'tendency_bets' => $bets->where('base_price', 0.30)->count(),
