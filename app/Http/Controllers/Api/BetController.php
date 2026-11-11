@@ -9,6 +9,7 @@ use App\Models\Bet;
 use App\Models\Game;
 use App\Services\PlaceBet;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class BetController extends Controller
 {
@@ -40,10 +41,7 @@ class BetController extends Controller
      */
     public function update(StoreBetRequest $request, Bet $bet)
     {
-        // Check authorization
-        if ($bet->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        Gate::authorize('update', $bet);
 
         // Check if bet is locked
         if ($bet->locked_at) {
@@ -72,10 +70,7 @@ class BetController extends Controller
      */
     public function destroy(Bet $bet, Request $request)
     {
-        // Check authorization
-        if ($bet->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        Gate::authorize('delete', $bet);
 
         // Check if bet is locked
         if ($bet->locked_at) {
